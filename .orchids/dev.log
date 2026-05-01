@@ -1,0 +1,15 @@
+
+> ppppp@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.4 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://172.20.0.20:3000
+✓ Ready in 314ms
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+
+ GET /?_cb=1777644046926 200 in 16.1s (next.js: 2.1s, application-code: 14.0s)
