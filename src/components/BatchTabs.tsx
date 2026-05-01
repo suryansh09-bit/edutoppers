@@ -312,21 +312,20 @@ function LiveClasses({ batchId }: { batchId: string }) {
     <>
       {playingClass && (
         <LiveVideoPlayer
-          videoId={
-            playingClass.videoDetails?.findKey ||
-            playingClass.videoDetails?._id ||
-            playingClass._id
-          }
+          videoId={playingClass._id}
           batchId={batchId}
           subjectId={playingClass.subjectId?._id || ""}
           subjectSlug={playingClass.subjectId?.slug || ""}
           title={playingClass.topic || playingClass.name || playingClass.videoDetails?.name || "Live Class"}
           isLive={getClassStatus(playingClass).label === "LIVE"}
           directUrl={
-            playingClass.url ||
-            playingClass.ytStreamUrl ||
-            playingClass.videoDetails?.videoUrl ||
-            undefined
+            /* For currently LIVE classes, pass the stream URL directly.
+               For recorded/ended classes, always let live-video API resolve
+               the signed URL via get-url with the schedule _id — don't
+               pass an unsigned directUrl which would fail auth. */
+            getClassStatus(playingClass).label === "LIVE"
+              ? (playingClass.url || playingClass.ytStreamUrl || undefined)
+              : undefined
           }
           urlType={playingClass.urlType || undefined}
           onClose={() => setPlayingClass(null)}

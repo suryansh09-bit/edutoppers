@@ -224,13 +224,14 @@ function appendAuth(url: string, authQuery: string): string {
     const urlObj = new URL(url);
     const params = urlObj.searchParams;
 
-    // If any CloudFront / PW auth params already exist, don't duplicate
+    // If any CloudFront / PW / LIMELIGHT auth params already exist, don't duplicate
     if (
       params.has("Signature") ||
       params.has("Key-Pair-Id") ||
       params.has("URLPrefix") ||
       params.has("Expires") ||
       params.has("Policy") ||
+      params.has("KeyName") ||
       params.has("X-Amz-Signature")
     ) {
       return url;
@@ -241,7 +242,12 @@ function appendAuth(url: string, authQuery: string): string {
     return url + separator + authQuery.replace(/^\?/, "");
   } catch {
     // URL parsing failed — fall back to string manipulation
-    if (url.includes("Signature=") || url.includes("Key-Pair-Id=") || url.includes("URLPrefix=")) {
+    if (
+      url.includes("Signature=") ||
+      url.includes("Key-Pair-Id=") ||
+      url.includes("URLPrefix=") ||
+      url.includes("KeyName=")
+    ) {
       return url;
     }
     const separator = url.includes("?") ? "&" : "?";
