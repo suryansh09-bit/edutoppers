@@ -295,11 +295,6 @@ export default function LiveVideoPlayer({
         levelLoadingRetryDelay: 1000,
         fragLoadingMaxRetry: 6,
         fragLoadingRetryDelay: 1000,
-        // XHR setup for PW CDN headers
-        xhrSetup: (xhr: XMLHttpRequest) => {
-          xhr.setRequestHeader("Referer", "https://www.pw.live/");
-          xhr.setRequestHeader("Origin", "https://www.pw.live");
-        },
       });
       hlsRef.current = hls;
       hls.loadSource(src);
