@@ -18,6 +18,7 @@ export default async function TopicPage({
   const sp = await searchParams;
 
   let topicName = "Topic";
+  let subjectName = "";
   let subjectSlug = sp.subjectSlug || "";
   let topicSlug = sp.topicSlug || "";
 
@@ -28,10 +29,9 @@ export default async function TopicPage({
     ]);
 
     if (detailsRes.success) {
-      const subject = detailsRes.data.subjects.find(
-        (s: Subject) => s._id === subjectId
-      );
+      const subject = detailsRes.data.subjects.find((s: Subject) => s._id === subjectId);
       if (subject) {
+        subjectName = subject.subject;
         if (!subjectSlug) subjectSlug = subject.slug || "";
       }
     }
@@ -52,18 +52,24 @@ export default async function TopicPage({
     <main>
       <Header />
       <div className="px-4 sm:px-6 py-8 max-w-[1400px] mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-1 h-10 bg-accent-purple rounded-full" />
-            <h1 className="text-xl sm:text-2xl font-bold text-white line-clamp-1">
-              {topicName}
-            </h1>
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+          <div>
+            <div className="flex items-center gap-2 text-sm text-slate-400 mb-2 flex-wrap">
+              <Link href="/" className="hover:text-indigo-600 transition-colors font-medium">Home</Link>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              <Link href={`/batch/${batchId}/subject/${subjectId}`} className="hover:text-indigo-600 transition-colors font-medium truncate max-w-[100px]">{subjectName || "Subject"}</Link>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              <span className="text-slate-600 font-medium truncate max-w-[140px]">{topicName}</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 leading-snug line-clamp-2">{topicName}</h1>
           </div>
           <Link
             href={`/batch/${batchId}/subject/${subjectId}`}
-            className="btn-purple text-white px-5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 hover:scale-105 transition-transform flex-shrink-0"
+            className="btn-purple text-white px-5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 self-start sm:self-center flex-shrink-0"
           >
-            &larr; Back to Lessons
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            Back to Lessons
           </Link>
         </div>
 

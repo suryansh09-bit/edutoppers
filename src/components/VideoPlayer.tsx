@@ -447,19 +447,19 @@ export default function VideoPlayer({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-2 sm:p-4"
+      className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4"
       ref={containerRef}
       onClick={(e) => { if (e.target === containerRef.current) onClose(); }}
     >
       <div className="relative w-full max-w-5xl">
         {/* Title bar */}
-        <div className="flex items-center justify-between mb-2 px-1">
-          <h2 className="text-white font-semibold text-base line-clamp-1 flex-1 mr-4 opacity-90">
+        <div className="flex items-center justify-between mb-3 px-1">
+          <h2 className="text-white font-bold text-sm sm:text-base line-clamp-1 flex-1 mr-4 opacity-90 tracking-tight">
             {title}
           </h2>
           <button
             onClick={onClose}
-            className="text-white/60 hover:text-white text-2xl leading-none px-2 transition-colors"
+            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white/70 hover:text-white flex items-center justify-center transition-all text-lg leading-none"
             title="Close (Esc)"
           >
             &times;

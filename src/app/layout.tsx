@@ -1,15 +1,9 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
 import "./globals.css";
 
-const geist = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
-  title: "EduToppers",
-  description: "Free Education For Every Student",
+  title: "EduToppers — Free Learning Platform",
+  description: "Premium PW batches free for every student. Unlock quality education today.",
 };
 
 export default function RootLayout({
@@ -18,7 +12,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geist.variable} antialiased`}>
+    <html lang="en" className="antialiased">
       <body className="min-h-screen gradient-bg">{children}</body>
     </html>
   );

@@ -21,7 +21,7 @@ export default async function Home() {
   return (
     <main>
       <Header />
-      <div className="px-4 sm:px-6 py-8 max-w-[1400px] mx-auto">
+      <div className="px-4 sm:px-6 pt-6 pb-12 max-w-[1400px] mx-auto">
         {error ? (
           <div className="text-center py-20">
             <div className="text-6xl mb-4">&#9888;</div>
