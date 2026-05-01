@@ -121,6 +121,7 @@ export default function LiveVideoPlayer({
           batch_id: batchId,
           ...(subjectId ? { subject_id: subjectId } : {}),
           ...(subjectSlug ? { subject_slug: subjectSlug } : {}),
+          ...(urlType ? { url_type: urlType } : {}),
         });
         const res = await fetch(`/api/live-video?${params.toString()}`);
         data = await res.json();
@@ -275,12 +276,30 @@ export default function LiveVideoPlayer({
     setProgress("Loading stream...");
     const Hls = (await import("hls.js")).default;
     if (Hls.isSupported()) {
+      // Destroy any existing instance
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: isLive,
         startLevel: -1,
         maxBufferLength: isLive ? 30 : 60,
         maxMaxBufferLength: isLive ? 60 : 120,
+        // Retry settings for network errors
+        manifestLoadingMaxRetry: 4,
+        manifestLoadingRetryDelay: 1000,
+        levelLoadingMaxRetry: 4,
+        levelLoadingRetryDelay: 1000,
+        fragLoadingMaxRetry: 6,
+        fragLoadingRetryDelay: 1000,
+        // XHR setup for PW CDN headers
+        xhrSetup: (xhr: XMLHttpRequest) => {
+          xhr.setRequestHeader("Referer", "https://www.pw.live/");
+          xhr.setRequestHeader("Origin", "https://www.pw.live");
+        },
       });
       hlsRef.current = hls;
       hls.loadSource(src);
@@ -300,16 +319,30 @@ export default function LiveVideoPlayer({
         setPlaying(true);
       });
 
-      hls.on(Hls.Events.ERROR, (_: unknown, errData: { fatal?: boolean; type?: string; details?: string }) => {
-        if (errData.fatal) {
-          if (errData.type === "networkError") {
-            hls.startLoad();
-          } else if (errData.type === "mediaError") {
+      let mediaRecoveryAttempted = false;
+      hls.on(Hls.Events.ERROR, (_: unknown, errData: { fatal?: boolean; type?: string; details?: string; response?: { code?: number } }) => {
+        if (!errData.fatal) return;
+
+        if (errData.type === "networkError") {
+          // Try to recover from network errors
+          hls.startLoad();
+        } else if (errData.type === "mediaError") {
+          if (!mediaRecoveryAttempted) {
+            mediaRecoveryAttempted = true;
             hls.recoverMediaError();
           } else {
-            setError(`Stream error: ${errData.details || "playback failed"}. Please retry.`);
-            setLoading(false);
+            // Second media error — swap codec
+            hls.swapAudioCodec();
+            hls.recoverMediaError();
           }
+        } else {
+          const detail = errData.details || "playback failed";
+          const httpCode = errData.response?.code;
+          const msg = httpCode
+            ? `HLS error: ${detail} (HTTP ${httpCode}). Please retry.`
+            : `HLS error: ${detail}. Please retry.`;
+          setError(msg);
+          setLoading(false);
         }
       });
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {

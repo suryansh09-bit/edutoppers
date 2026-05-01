@@ -312,13 +312,22 @@ function LiveClasses({ batchId }: { batchId: string }) {
     <>
       {playingClass && (
         <LiveVideoPlayer
-          videoId={playingClass.videoDetails?.findKey || playingClass._id}
+          videoId={
+            playingClass.videoDetails?.findKey ||
+            playingClass.videoDetails?._id ||
+            playingClass._id
+          }
           batchId={batchId}
           subjectId={playingClass.subjectId?._id || ""}
           subjectSlug={playingClass.subjectId?.slug || ""}
-          title={playingClass.topic || playingClass.videoDetails?.name || "Live Class"}
+          title={playingClass.topic || playingClass.name || playingClass.videoDetails?.name || "Live Class"}
           isLive={getClassStatus(playingClass).label === "LIVE"}
-          directUrl={playingClass.url || playingClass.ytStreamUrl || undefined}
+          directUrl={
+            playingClass.url ||
+            playingClass.ytStreamUrl ||
+            playingClass.videoDetails?.videoUrl ||
+            undefined
+          }
           urlType={playingClass.urlType || undefined}
           onClose={() => setPlayingClass(null)}
         />
@@ -333,7 +342,16 @@ function LiveClasses({ batchId }: { batchId: string }) {
           const subjectName = cls.subjectId?.name || "";
           const gradient = getSubjectGradient(subjectName);
           const initials = getSubjectInitials(subjectName);
-          const isPlayable = statusLabel === "Completed" || statusLabel === "LIVE" || cls.tag === "Ended" || !!cls.videoDetails;
+          const isPlayable =
+            statusLabel === "Completed" ||
+            statusLabel === "LIVE" ||
+            cls.tag === "Ended" ||
+            cls.tag === "ENDED" ||
+            cls.status === "ENDED" ||
+            cls.status === "Ended" ||
+            !!cls.videoDetails ||
+            !!cls.url ||
+            !!cls.ytStreamUrl;
           const thumbnailImage = cls.videoDetails?.image || null;
 
           return (

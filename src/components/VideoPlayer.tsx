@@ -201,10 +201,26 @@ export default function VideoPlayer({
     setProgress("Loading HLS stream...");
     const Hls = (await import("hls.js")).default;
     if (Hls.isSupported()) {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
         startLevel: -1,
+        maxBufferLength: 60,
+        maxMaxBufferLength: 120,
+        manifestLoadingMaxRetry: 4,
+        manifestLoadingRetryDelay: 1000,
+        levelLoadingMaxRetry: 4,
+        levelLoadingRetryDelay: 1000,
+        fragLoadingMaxRetry: 6,
+        fragLoadingRetryDelay: 1000,
+        xhrSetup: (xhr: XMLHttpRequest) => {
+          xhr.setRequestHeader("Referer", "https://www.pw.live/");
+          xhr.setRequestHeader("Origin", "https://www.pw.live");
+        },
       });
       hlsRef.current = hls as typeof hlsRef.current;
       hls.loadSource(src);
@@ -222,9 +238,21 @@ export default function VideoPlayer({
         setPlaying(true);
       });
 
-      hls.on(Hls.Events.ERROR, (_event: unknown, errData: { fatal?: boolean }) => {
-        if (errData.fatal) {
-          setError("HLS playback error. Please retry.");
+      let mediaRecoveryAttempted = false;
+      hls.on(Hls.Events.ERROR, (_event: unknown, errData: { fatal?: boolean; type?: string; details?: string }) => {
+        if (!errData.fatal) return;
+        if (errData.type === "networkError") {
+          hls.startLoad();
+        } else if (errData.type === "mediaError") {
+          if (!mediaRecoveryAttempted) {
+            mediaRecoveryAttempted = true;
+            hls.recoverMediaError();
+          } else {
+            hls.swapAudioCodec();
+            hls.recoverMediaError();
+          }
+        } else {
+          setError(`HLS error: ${errData.details || "playback failed"}. Please retry.`);
           setLoading(false);
         }
       });
@@ -234,6 +262,10 @@ export default function VideoPlayer({
         video.play().catch(() => {});
         setLoading(false);
         setPlaying(true);
+      }, { once: true });
+      video.addEventListener("error", () => {
+        setError("Failed to load stream");
+        setLoading(false);
       }, { once: true });
     } else {
       setError("HLS not supported in this browser");
