@@ -10,8 +10,12 @@ interface LiveVideoPlayerProps {
   subjectId?: string;
   subjectSlug?: string;
   title: string;
-  /** Whether the class is currently live (true) or a completed recording (false) */
+  /** Whether the class is currently live */
   isLive?: boolean;
+  /** Direct CloudFront / CDN / YouTube URL already on the item (skips API lookup) */
+  directUrl?: string;
+  /** urlType from the live class item, e.g. "awsVideo", "penpencilvdo", "youtube" */
+  urlType?: string;
   onClose: () => void;
 }
 
@@ -39,6 +43,8 @@ export default function LiveVideoPlayer({
   subjectSlug = "",
   title,
   isLive = false,
+  directUrl,
+  urlType,
   onClose,
 }: LiveVideoPlayerProps) {
   const [loading, setLoading] = useState(true);
@@ -89,18 +95,47 @@ export default function LiveVideoPlayer({
       hlsRef.current.destroy();
       hlsRef.current = null;
     }
+    if (videoRef.current) {
+      videoRef.current.src = "";
+      videoRef.current.load();
+    }
 
     try {
-      const params = new URLSearchParams({
-        video_id: videoId,
-        batch_id: batchId,
-        schedule_id: videoId,
-        ...(subjectId ? { subject_id: subjectId } : {}),
-        ...(subjectSlug ? { subject_slug: subjectSlug } : {}),
-      });
+      let data: VideoData;
 
-      const res = await fetch(`/api/live-video?${params.toString()}`);
-      const data: VideoData = await res.json();
+      // If a direct URL is available, send it to the API for resolution (proxy + DRM)
+      if (directUrl) {
+        setProgress("Resolving video URL...");
+
+        // YouTube direct
+        if (directUrl.includes("youtube.com") || directUrl.includes("youtu.be") ||
+            urlType === "youtube") {
+          setYoutubeUrl(directUrl);
+          setLoading(false);
+          return;
+        }
+
+        // Pass direct URL through our live-video API for proxying
+        const params = new URLSearchParams({
+          direct_url: directUrl,
+          batch_id: batchId,
+          ...(subjectId ? { subject_id: subjectId } : {}),
+          ...(subjectSlug ? { subject_slug: subjectSlug } : {}),
+        });
+        const res = await fetch(`/api/live-video?${params.toString()}`);
+        data = await res.json();
+      } else {
+        // Standard lookup via schedule/video ID
+        const params = new URLSearchParams({
+          video_id: videoId,
+          batch_id: batchId,
+          schedule_id: videoId,
+          ...(subjectId ? { subject_id: subjectId } : {}),
+          ...(subjectSlug ? { subject_slug: subjectSlug } : {}),
+        });
+        const res = await fetch(`/api/live-video?${params.toString()}`);
+        data = await res.json();
+      }
 
       if (!data.success) {
         setError(data.error || "Could not load video");
@@ -117,18 +152,19 @@ export default function LiveVideoPlayer({
       const video = videoRef.current;
       if (!video) return;
 
+      // DRM playback via Shaka Player
       if (data.type === "drm" && data.mpdUrl && data.kid && data.key) {
         setProgress("Loading DRM player...");
         const shaka = await import("shaka-player");
         shaka.default.polyfill.installAll();
 
         if (!shaka.default.Player.isBrowserSupported()) {
-          if (data.hlsUrl) {
-            await loadHls(video, data.hlsUrl);
-          } else {
-            setError("Your browser does not support DRM video");
-            setLoading(false);
-          }
+          // Fall back to proxied HLS
+          const fallbackHls = data.hlsUrl || data.mpdUrl.replace(/\.mpd(\?|$)/, ".m3u8$1");
+          const proxied = fallbackHls.startsWith("/api/hls-proxy")
+            ? fallbackHls
+            : `/api/hls-proxy?url=${encodeURIComponent(fallbackHls)}`;
+          await loadHls(video, proxied);
           return;
         }
 
@@ -136,6 +172,7 @@ export default function LiveVideoPlayer({
         await player.attach(video);
         shakaRef.current = player;
 
+        // Forward CloudFront auth query string to every request
         const mpdParts = data.mpdUrl.split("?");
         if (mpdParts.length > 1) {
           const queryString = "?" + mpdParts[1];
@@ -154,8 +191,16 @@ export default function LiveVideoPlayer({
         });
 
         player.addEventListener("error", (event: Event) => {
-          const detail = (event as Event & { detail?: { message?: string } })?.detail;
-          setError(detail?.message || "Playback error");
+          const detail = (event as Event & { detail?: { message?: string; code?: number } })?.detail;
+          // On DRM error, fall back to proxied HLS
+          if (data.hlsUrl) {
+            setProgress("DRM failed, trying HLS...");
+            loadHls(video, data.hlsUrl).catch(() => {
+              setError(detail?.message || "Playback error");
+            });
+          } else {
+            setError(detail?.message || "Playback error");
+          }
         });
 
         player.addEventListener("variantschanged", () => {
@@ -163,22 +208,39 @@ export default function LiveVideoPlayer({
           const tracks = shakaRef.current.getVariantTracks();
           const qs: QualityLevel[] = tracks
             .filter((t: { height: number }) => t.height)
-            .map((t: { height: number; bandwidth: number }, i: number) => ({ height: t.height, bitrate: t.bandwidth, index: i }))
+            .map((t: { height: number; bandwidth: number }, i: number) => ({
+              height: t.height ?? 0,
+              bitrate: t.bandwidth,
+              index: i,
+            }))
             .sort((a: QualityLevel, b: QualityLevel) => b.height - a.height);
           setQualities(qs);
         });
 
         setProgress("Loading stream...");
-        await player.load(data.mpdUrl);
-        video.play().catch(() => {});
-        setLoading(false);
-        setPlaying(true);
+        try {
+          await player.load(data.mpdUrl);
+          video.play().catch(() => {});
+          setLoading(false);
+          setPlaying(true);
+        } catch {
+          // DRM load failed — fall back to proxied HLS
+          if (data.hlsUrl) {
+            setProgress("Switching to HLS...");
+            await shakaRef.current?.destroy().catch(() => {});
+            shakaRef.current = null;
+            await loadHls(video, data.hlsUrl);
+          } else {
+            setError("Failed to load DRM stream");
+            setLoading(false);
+          }
+        }
         return;
       }
 
-      // HLS
+      // HLS (proxied URL from our API)
       const hlsSrc = data.hlsUrl || data.videoUrl || "";
-      if ((data.type === "hls" || data.type === "drm" || data.type === "live") && hlsSrc) {
+      if ((data.type === "hls" || data.type === "live" || data.type === "drm") && hlsSrc) {
         await loadHls(video, hlsSrc);
         return;
       }
@@ -201,55 +263,66 @@ export default function LiveVideoPlayer({
 
       setError("No playable URL found");
       setLoading(false);
-    } catch {
-      setError("Failed to load video");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to load video";
+      setError(msg);
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoId, batchId, subjectId, subjectSlug]);
+  }, [videoId, batchId, subjectId, subjectSlug, directUrl, urlType]);
 
   async function loadHls(video: HTMLVideoElement, src: string) {
-    setProgress("Loading HLS stream...");
+    setProgress("Loading stream...");
     const Hls = (await import("hls.js")).default;
     if (Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: isLive,
         startLevel: -1,
+        maxBufferLength: isLive ? 30 : 60,
+        maxMaxBufferLength: isLive ? 60 : 120,
       });
       hlsRef.current = hls;
       hls.loadSource(src);
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        const lvls: QualityLevel[] = hls.levels.map((l: { height: number; bitrate: number }, i: number) => ({
-          height: l.height || 0,
-          bitrate: l.bitrate || 0,
-          index: i,
-        })).sort((a: QualityLevel, b: QualityLevel) => b.height - a.height);
+        const lvls: QualityLevel[] = hls.levels.map(
+          (l: { height: number; bitrate: number }, i: number) => ({
+            height: l.height || 0,
+            bitrate: l.bitrate || 0,
+            index: i,
+          })
+        ).sort((a: QualityLevel, b: QualityLevel) => b.height - a.height);
         setQualities(lvls);
         video.play().catch(() => {});
         setLoading(false);
         setPlaying(true);
       });
 
-      hls.on(Hls.Events.ERROR, (_: unknown, errData: { fatal?: boolean; details?: string }) => {
+      hls.on(Hls.Events.ERROR, (_: unknown, errData: { fatal?: boolean; type?: string; details?: string }) => {
         if (errData.fatal) {
-          // If it's a network/media error on a live stream, try to recover
-          if (isLive && errData.details?.includes("networkError")) {
+          if (errData.type === "networkError") {
             hls.startLoad();
+          } else if (errData.type === "mediaError") {
+            hls.recoverMediaError();
           } else {
-            setError(`HLS error: ${errData.details || "playback failed"}. Please retry.`);
+            setError(`Stream error: ${errData.details || "playback failed"}. Please retry.`);
             setLoading(false);
           }
         }
       });
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      // Safari native HLS
       video.src = src;
       video.addEventListener("loadedmetadata", () => {
         video.play().catch(() => {});
         setLoading(false);
         setPlaying(true);
+      }, { once: true });
+      video.addEventListener("error", () => {
+        setError("Failed to load stream");
+        setLoading(false);
       }, { once: true });
     } else {
       setError("HLS playback not supported in this browser");
@@ -298,8 +371,8 @@ export default function LiveVideoPlayer({
       switch (e.key) {
         case "Escape": onClose(); break;
         case " ": case "k": e.preventDefault(); togglePlay(); break;
-        case "ArrowRight": e.preventDefault(); skip(10); break;
-        case "ArrowLeft": e.preventDefault(); skip(-10); break;
+        case "ArrowRight": e.preventDefault(); if (!isLive) skip(10); break;
+        case "ArrowLeft": e.preventDefault(); if (!isLive) skip(-10); break;
         case "f": toggleFullscreen(); break;
         case "m": toggleMute(); break;
       }
@@ -307,7 +380,7 @@ export default function LiveVideoPlayer({
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onClose, youtubeUrl]);
+  }, [onClose, youtubeUrl, isLive]);
 
   useEffect(() => {
     const onFsChange = () => setFullscreen(!!document.fullscreenElement);
@@ -449,7 +522,6 @@ export default function LiveVideoPlayer({
           {/* Error */}
           {error && !loading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black">
-              {/* PW logo fallback */}
               <div className="mb-4 opacity-30">
                 <Image src="/pw-logo.jpg" alt="PW" width={80} height={80} className="rounded-full" unoptimized />
               </div>
@@ -476,11 +548,7 @@ export default function LiveVideoPlayer({
 
           {/* Video element */}
           {!youtubeUrl && (
-            <video
-              ref={videoRef}
-              className="w-full h-full"
-              playsInline
-            />
+            <video ref={videoRef} className="w-full h-full" playsInline />
           )}
 
           {/* Controls */}
@@ -492,7 +560,7 @@ export default function LiveVideoPlayer({
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
 
               <div className="relative z-10 px-4 pb-3">
-                {/* Progress bar (hidden for live) */}
+                {/* Seek bar for recordings */}
                 {!isLive && (
                   <div
                     className="relative h-1 hover:h-2 bg-white/20 rounded-full cursor-pointer mb-3 transition-all duration-150 group/bar"
@@ -500,15 +568,18 @@ export default function LiveVideoPlayer({
                   >
                     <div className="absolute top-0 left-0 h-full bg-white/30 rounded-full pointer-events-none" style={{ width: `${bufferedPct}%` }} />
                     <div className="absolute top-0 left-0 h-full bg-red-500 rounded-full pointer-events-none" style={{ width: `${progressPct}%` }} />
-                    <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-red-500 rounded-full -translate-x-1/2 opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none" style={{ left: `${progressPct}%` }} />
+                    <div
+                      className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-red-500 rounded-full -translate-x-1/2 opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none"
+                      style={{ left: `${progressPct}%` }}
+                    />
                   </div>
                 )}
 
-                {/* For live streams show LIVE indicator */}
+                {/* LIVE bar */}
                 {isLive && (
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="h-1 flex-1 bg-red-600 rounded-full" />
-                    <span className="text-xs text-white/60 flex-shrink-0">LIVE</span>
+                    <div className="h-1 flex-1 bg-red-600 rounded-full animate-pulse" />
+                    <span className="text-xs text-white/60 flex-shrink-0">● LIVE</span>
                   </div>
                 )}
 
@@ -522,15 +593,15 @@ export default function LiveVideoPlayer({
                     )}
                   </button>
 
-                  {/* Skip (only for recordings) */}
+                  {/* Skip (recordings only) */}
                   {!isLive && (
                     <>
-                      <button onClick={() => skip(-10)} className="text-white hover:text-red-300 transition-colors flex-shrink-0" title="Back 10s">
+                      <button onClick={() => skip(-10)} className="text-white hover:text-red-300 transition-colors flex-shrink-0" title="Back 10s (←)">
                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
                         </svg>
                       </button>
-                      <button onClick={() => skip(10)} className="text-white hover:text-red-300 transition-colors flex-shrink-0" title="Forward 10s">
+                      <button onClick={() => skip(10)} className="text-white hover:text-red-300 transition-colors flex-shrink-0" title="Forward 10s (→)">
                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/>
                         </svg>
@@ -558,7 +629,7 @@ export default function LiveVideoPlayer({
                     />
                   </div>
 
-                  {/* Time */}
+                  {/* Time (recordings) */}
                   {!isLive && (
                     <span className="text-white/70 text-xs flex-shrink-0 font-mono hidden sm:block">
                       {formatTime(currentTime)} / {formatTime(duration)}
@@ -567,7 +638,7 @@ export default function LiveVideoPlayer({
 
                   <div className="flex-1" />
 
-                  {/* Speed (not for live) */}
+                  {/* Speed (recordings only) */}
                   {!isLive && (
                     <div className="relative flex-shrink-0">
                       <button

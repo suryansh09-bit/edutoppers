@@ -29,6 +29,11 @@ async function tryDecryptedFetch(
   }
 }
 
+/** Wrap an HLS URL in our server-side proxy so auth tokens survive sub-playlist loads */
+function proxyHls(hlsUrl: string): string {
+  return `/api/hls-proxy?url=${encodeURIComponent(hlsUrl)}`;
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const childId = searchParams.get("childId");
@@ -61,7 +66,24 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Step 2: get-url (childId + batchId)
+    // Step 2: get-url (childId + batchId + subjectId)
+    if (!videoUrl && subjectId) {
+      const data = await tryFetch(
+        `${PROXY_BASE}/api/pw/get-url?childId=${childId}&batchId=${batchId}&subjectId=${subjectId}`
+      );
+      if (data?.success) {
+        const url =
+          (data as { url?: string }).url ||
+          (
+            (data as { data?: { url?: string }[] }).data as
+              | { url?: string }[]
+              | undefined
+          )?.[0]?.url;
+        if (url) videoUrl = url;
+      }
+    }
+
+    // Step 3: get-url (childId + batchId, no subject)
     if (!videoUrl) {
       const data = await tryFetch(
         `${PROXY_BASE}/api/pw/get-url?childId=${childId}&batchId=${batchId}`
@@ -78,7 +100,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Step 3: get-url with video_id format
+    // Step 4: get-url with video_id format
     if (!videoUrl && subjectSlug) {
       const data = await tryFetch(
         `${PROXY_BASE}/api/pw/get-url?video_id=${childId}&batch_id=${batchId}&subject_slug=${encodeURIComponent(subjectSlug)}`
@@ -95,7 +117,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Step 4: video endpoint (encrypted)
+    // Step 5: video endpoint (encrypted)
     if (!videoUrl && subjectId) {
       const data = await tryDecryptedFetch(
         `${PROXY_BASE}/api/pw/video?batchId=${batchId}&subjectId=${subjectId}&childId=${childId}`
@@ -118,7 +140,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Step 5: videoplay
+    // Step 6: videoplay
     if (!videoUrl && subjectId) {
       const data = await tryFetch(
         `${PROXY_BASE}/api/pw/videoplay?batchId=${batchId}&subjectId=${subjectId}&childId=${childId}`
@@ -173,7 +195,7 @@ export async function GET(request: NextRequest) {
 
     // Check if MPD / HLS
     const isMpd = videoUrl.includes(".mpd");
-    const hlsUrl = videoUrl.replace(/\.mpd/i, ".m3u8");
+    const hlsUrl = videoUrl.replace(/\.mpd(\?|$)/, ".m3u8$1");
 
     if (isMpd || videoType === "DASH") {
       // Extract KID for DRM decryption
@@ -182,8 +204,12 @@ export async function GET(request: NextRequest) {
       );
 
       if (kidData?.success && kidData.kid) {
+        const otpParams = new URLSearchParams({ kid: kidData.kid as string });
+        if (subjectSlug) otpParams.set("subject_slug", subjectSlug);
+        if (batchId) otpParams.set("batch_id", batchId);
+        if (subjectId) otpParams.set("subject_id", subjectId);
         const otpData = await tryFetch(
-          `${PROXY_BASE}/api/pw/otp?kid=${kidData.kid}`
+          `${PROXY_BASE}/api/pw/otp?${otpParams.toString()}`
         );
 
         if (otpData?.success && otpData.key) {
@@ -191,27 +217,36 @@ export async function GET(request: NextRequest) {
             success: true,
             type: "drm",
             mpdUrl: videoUrl,
-            hlsUrl,
+            hlsUrl: proxyHls(hlsUrl),
             kid: kidData.kid as string,
             key: otpData.key as string,
           });
         }
       }
 
-      // If KID/OTP fails, try HLS directly
+      // If KID/OTP fails, proxy the HLS
       return Response.json({
         success: true,
         type: "hls",
-        videoUrl: hlsUrl,
+        videoUrl: proxyHls(hlsUrl),
         mpdUrl: videoUrl,
       });
     }
 
-    // HLS or MP4
-    const isHls = videoUrl.includes(".m3u8");
+    // Plain HLS — proxy to forward auth tokens on segment requests
+    const isHls = videoUrl.includes(".m3u8") || videoUrl.includes(".m3u");
+    if (isHls) {
+      return Response.json({
+        success: true,
+        type: "hls",
+        videoUrl: proxyHls(videoUrl),
+      });
+    }
+
+    // MP4 / direct
     return Response.json({
       success: true,
-      type: isHls ? "hls" : "mp4",
+      type: "mp4",
       videoUrl,
     });
   } catch (e) {

@@ -150,7 +150,8 @@ interface LiveClassItem {
   status?: string;
   tag?: string;
   urlType?: string;
-  url?: string;
+  url?: string;               // Direct CloudFront/CDN URL (awsVideo type)
+  ytStreamUrl?: string;       // YouTube stream URL
   isFree?: boolean;
   videoDetails?: {
     _id?: string;
@@ -317,6 +318,8 @@ function LiveClasses({ batchId }: { batchId: string }) {
           subjectSlug={playingClass.subjectId?.slug || ""}
           title={playingClass.topic || playingClass.videoDetails?.name || "Live Class"}
           isLive={getClassStatus(playingClass).label === "LIVE"}
+          directUrl={playingClass.url || playingClass.ytStreamUrl || undefined}
+          urlType={playingClass.urlType || undefined}
           onClose={() => setPlayingClass(null)}
         />
       )}

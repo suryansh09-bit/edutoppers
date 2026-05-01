@@ -27,27 +27,50 @@ async function tryDecryptedFetch(url: string): Promise<Record<string, unknown> |
   }
 }
 
+/** Wrap an HLS URL in our server-side proxy to forward auth tokens on every segment request */
+function proxyHls(hlsUrl: string): string {
+  return `/api/hls-proxy?url=${encodeURIComponent(hlsUrl)}`;
+}
+
 /**
  * GET /api/live-video
- * Resolves a live class video URL for playback.
  *
- * Query params:
- *   video_id       - The schedule/video ID (required)
- *   batch_id       - The batch ID (required)
- *   subject_slug   - Subject slug
- *   subject_id     - Subject ID
- *   schedule_id    - Schedule ID (same as video_id usually)
+ * Resolves a live / recorded-live class video URL.
  *
- * Mirrors the structure at:
- *   https://deltastudy.site/pw/aws/play?video_id=...&subject_slug=...&batch_id=...&schedule_id=...&subject_id=...
+ * Query params (mirroring deltastudy.site/pw/aws/play structure):
+ *   video_id     / videoId / childId   – schedule or video ID (required)
+ *   batch_id     / batchId             – batch ID (required)
+ *   subject_id   / subjectId           – subject ID (optional but improves resolution)
+ *   subject_slug / subjectSlug         – subject slug (optional)
+ *   schedule_id  / scheduleId          – schedule ID (defaults to video_id)
+ *   direct_url                         – pass a raw CloudFront/CDN URL directly
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
-  const videoId = searchParams.get("video_id") || searchParams.get("videoId") || searchParams.get("childId");
-  const batchId = searchParams.get("batch_id") || searchParams.get("batchId");
-  const subjectSlug = searchParams.get("subject_slug") || searchParams.get("subjectSlug") || "";
-  const subjectId = searchParams.get("subject_id") || searchParams.get("subjectId") || "";
-  const scheduleId = searchParams.get("schedule_id") || searchParams.get("scheduleId") || videoId;
+
+  const videoId =
+    searchParams.get("video_id") ||
+    searchParams.get("videoId") ||
+    searchParams.get("childId");
+  const batchId =
+    searchParams.get("batch_id") ||
+    searchParams.get("batchId");
+  const subjectId =
+    searchParams.get("subject_id") ||
+    searchParams.get("subjectId") || "";
+  const subjectSlug =
+    searchParams.get("subject_slug") ||
+    searchParams.get("subjectSlug") || "";
+  const scheduleId =
+    searchParams.get("schedule_id") ||
+    searchParams.get("scheduleId") ||
+    videoId;
+
+  // Support passing a raw signed URL directly (for live classes that already have the URL)
+  const directUrl = searchParams.get("direct_url");
+  if (directUrl) {
+    return resolveUrl(directUrl, batchId || "", subjectId, subjectSlug);
+  }
 
   if (!videoId || !batchId) {
     return Response.json(
@@ -60,21 +83,31 @@ export async function GET(request: NextRequest) {
     let videoUrl: string | null = null;
     let videoType: string | null = null;
 
-    // Step 1: Try get-urls with subject info
+    // Step 1: get-url with childId + batchId + subjectId  (most reliable for recorded classes)
     if (subjectId) {
+      const data = await tryFetch(
+        `${PROXY_BASE}/api/pw/get-url?childId=${videoId}&batchId=${batchId}&subjectId=${subjectId}`
+      );
+      if (data?.success && Array.isArray(data.data)) {
+        const items = data.data as { url?: string; type?: string }[];
+        if (items[0]?.url) { videoUrl = items[0].url; videoType = items[0].type || null; }
+      } else if (data?.success && (data as { url?: string }).url) {
+        videoUrl = (data as { url?: string }).url!;
+      }
+    }
+
+    // Step 2: get-urls (batch + subject + child)
+    if (!videoUrl && subjectId) {
       const data = await tryFetch(
         `${PROXY_BASE}/api/pw/get-urls?batchId=${batchId}&subjectId=${subjectId}&childId=${videoId}`
       );
       if (data?.success && Array.isArray(data.data)) {
         const items = data.data as { url?: string; type?: string }[];
-        if (items[0]?.url) {
-          videoUrl = items[0].url;
-          videoType = items[0].type || null;
-        }
+        if (items[0]?.url) { videoUrl = items[0].url; videoType = items[0].type || null; }
       }
     }
 
-    // Step 2: get-url with video_id + batch_id + subject_slug (PW schedule format)
+    // Step 3: get-url with video_id + batch_id + subject_slug (schedule format)
     if (!videoUrl && subjectSlug) {
       const data = await tryFetch(
         `${PROXY_BASE}/api/pw/get-url?video_id=${videoId}&batch_id=${batchId}&subject_slug=${encodeURIComponent(subjectSlug)}`
@@ -87,7 +120,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Step 3: get-url by childId + batchId
+    // Step 4: get-url by childId + batchId (no subjectId)
     if (!videoUrl) {
       const data = await tryFetch(
         `${PROXY_BASE}/api/pw/get-url?childId=${videoId}&batchId=${batchId}`
@@ -100,19 +133,21 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Step 4: live schedule video endpoint
-    if (!videoUrl && scheduleId) {
+    // Step 5: videoplay (schedule/live endpoint)
+    if (!videoUrl && subjectId) {
       const data = await tryFetch(
-        `${PROXY_BASE}/api/pw/live-video?batchId=${batchId}&scheduleId=${scheduleId}`
+        `${PROXY_BASE}/api/pw/videoplay?batchId=${batchId}&subjectId=${subjectId}&childId=${videoId}`
       );
       if (data?.success) {
-        const d = data.data as { url?: string; videoUrl?: string; type?: string } | undefined;
-        if (d?.videoUrl) { videoUrl = d.videoUrl; videoType = d.type || null; }
-        else if (d?.url) { videoUrl = d.url; videoType = d.type || null; }
+        const d = data.data as { video_url?: string; url?: string; type?: string } | undefined;
+        const items = data.data as { url?: string; type?: string }[] | undefined;
+        if (d?.video_url) videoUrl = d.video_url;
+        else if (d?.url) { videoUrl = d.url; videoType = (d as { type?: string }).type || null; }
+        else if (Array.isArray(items) && items[0]?.url) { videoUrl = items[0].url; videoType = items[0].type || null; }
       }
     }
 
-    // Step 5: video endpoint (encrypted)
+    // Step 6: encrypted video endpoint
     if (!videoUrl && subjectId) {
       const data = await tryDecryptedFetch(
         `${PROXY_BASE}/api/pw/video?batchId=${batchId}&subjectId=${subjectId}&childId=${videoId}`
@@ -129,72 +164,109 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Step 6: videoplay endpoint
-    if (!videoUrl && subjectId) {
+    // Step 7: try scheduleId if different from videoId
+    if (!videoUrl && scheduleId && scheduleId !== videoId && subjectId) {
       const data = await tryFetch(
-        `${PROXY_BASE}/api/pw/videoplay?batchId=${batchId}&subjectId=${subjectId}&childId=${videoId}`
+        `${PROXY_BASE}/api/pw/get-url?childId=${scheduleId}&batchId=${batchId}&subjectId=${subjectId}`
       );
-      if (data?.success) {
-        const d = data.data as { video_url?: string; url?: string; type?: string } | undefined;
-        const items = data.data as { url?: string; type?: string }[] | undefined;
-        if (d?.video_url) videoUrl = d.video_url;
-        else if (d?.url) {
-          if (d.type === "youtube") return Response.json({ success: true, type: "youtube", videoUrl: d.url });
-          videoUrl = d.url;
-        } else if (Array.isArray(items) && items[0]?.url) {
-          if (items[0].type === "youtube") return Response.json({ success: true, type: "youtube", videoUrl: items[0].url });
-          videoUrl = items[0].url;
-        }
+      if (data?.success && Array.isArray(data.data)) {
+        const items = data.data as { url?: string; type?: string }[];
+        if (items[0]?.url) { videoUrl = items[0].url; videoType = items[0].type || null; }
       }
     }
 
     if (!videoUrl) {
       return Response.json({
         success: false,
-        error: "Could not resolve video URL. The recording may not be available yet.",
+        error: "Video URL not available. The recording may not be ready yet.",
       });
     }
 
-    // YouTube check
-    if (videoUrl.includes("youtube.com") || videoUrl.includes("youtu.be")) {
-      return Response.json({ success: true, type: "youtube", videoUrl });
-    }
-
-    // DRM / HLS detection
-    const isMpd = videoUrl.includes(".mpd");
-    const hlsUrl = videoUrl.replace(/\.mpd/i, ".m3u8");
-
-    if (isMpd || videoType === "DASH") {
-      const kidData = await tryFetch(
-        `${PROXY_BASE}/api/pw/kid?mpdUrl=${encodeURIComponent(videoUrl)}`
-      );
-      if (kidData?.success && kidData.kid) {
-        const otpData = await tryFetch(
-          `${PROXY_BASE}/api/pw/otp?kid=${kidData.kid}`
-        );
-        if (otpData?.success && otpData.key) {
-          return Response.json({
-            success: true,
-            type: "drm",
-            mpdUrl: videoUrl,
-            hlsUrl,
-            kid: kidData.kid as string,
-            key: otpData.key as string,
-          });
-        }
-      }
-      // Fallback to HLS
-      return Response.json({ success: true, type: "hls", videoUrl: hlsUrl, mpdUrl: videoUrl });
-    }
-
-    const isHls = videoUrl.includes(".m3u8");
-    return Response.json({
-      success: true,
-      type: isHls ? "hls" : "mp4",
-      videoUrl,
-    });
+    return resolveUrl(videoUrl, batchId, subjectId, subjectSlug, videoType);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Failed to get live video URL";
     return Response.json({ success: false, error: msg }, { status: 500 });
+  }
+}
+
+/**
+ * Given a raw video URL, determine the type, handle DRM if needed,
+ * and wrap HLS in the proxy so auth tokens survive sub-playlist loads.
+ */
+async function resolveUrl(
+  rawUrl: string,
+  batchId: string,
+  subjectId: string,
+  subjectSlug: string,
+  hint?: string | null
+): Promise<Response> {
+  // YouTube
+  if (rawUrl.includes("youtube.com") || rawUrl.includes("youtu.be")) {
+    return Response.json({ success: true, type: "youtube", videoUrl: rawUrl });
+  }
+
+  const isMpd = rawUrl.includes(".mpd");
+  const isHls = rawUrl.includes(".m3u8") || rawUrl.includes(".m3u");
+  const hlsUrl = isMpd ? rawUrl.replace(/\.mpd(\?|$)/, ".m3u8$1") : rawUrl;
+
+  // DRM (MPD)
+  if (isMpd || hint === "DASH") {
+    const kidData = await tryFetchLocal(
+      `https://apiserverpro.vercel.app/api/pw/kid?mpdUrl=${encodeURIComponent(rawUrl)}`
+    );
+    if (kidData?.success && kidData.kid) {
+      // Try OTP with all available context
+      const otpParams = new URLSearchParams({ kid: kidData.kid as string });
+      if (subjectSlug) otpParams.set("subject_slug", subjectSlug);
+      if (batchId) otpParams.set("batch_id", batchId);
+      if (subjectId) otpParams.set("subject_id", subjectId);
+      const otpData = await tryFetchLocal(
+        `https://apiserverpro.vercel.app/api/pw/otp?${otpParams.toString()}`
+      );
+      if (otpData?.success && otpData.key) {
+        // Also provide proxied HLS as fallback
+        return Response.json({
+          success: true,
+          type: "drm",
+          mpdUrl: rawUrl,
+          hlsUrl: proxyHls(hlsUrl),  // proxied fallback
+          kid: kidData.kid as string,
+          key: otpData.key as string,
+        });
+      }
+    }
+    // DRM key unavailable — fall back to proxied HLS
+    return Response.json({
+      success: true,
+      type: "hls",
+      videoUrl: proxyHls(hlsUrl),
+      mpdUrl: rawUrl,
+    });
+  }
+
+  // Plain HLS — proxy it to forward auth on every segment request
+  if (isHls) {
+    return Response.json({
+      success: true,
+      type: "hls",
+      videoUrl: proxyHls(rawUrl),
+    });
+  }
+
+  // MP4 or other direct URL
+  return Response.json({
+    success: true,
+    type: "mp4",
+    videoUrl: rawUrl,
+  });
+}
+
+async function tryFetchLocal(url: string): Promise<Record<string, unknown> | null> {
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
   }
 }
