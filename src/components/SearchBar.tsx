@@ -27,7 +27,7 @@ export default function SearchBar({
           setQuery(e.target.value);
           startTransition(() => onSearch(e.target.value));
         }}
-        className="search-input w-full pl-11 pr-10 py-2.5 rounded-xl text-sm font-medium"
+        className="search-input w-full pl-11 pr-10 py-3 rounded-xl text-sm font-semibold"
       />
       {query && (
         <button

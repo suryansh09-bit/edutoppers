@@ -20,49 +20,92 @@ export default function BatchGrid({ batches }: { batches: Batch[] }) {
 
   return (
     <>
-      {/* Hero Section */}
-      <div className="relative rounded-3xl overflow-hidden mb-10 hero-gradient p-8 sm:p-12">
-        <div
-          className="absolute inset-0 opacity-20"
-          style={{ background: "radial-gradient(ellipse at 20% 50%,#fff 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,#fff 0%,transparent 50%)" }}
-        />
-        <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="stat-pill flex items-center gap-1.5 px-3 py-1.5 rounded-full text-white text-xs font-semibold">
+      {/* ── Hero ── */}
+      <div className="relative rounded-3xl overflow-hidden mb-12 hero-bg">
+        {/* Decorative blobs */}
+        <div className="orb w-72 h-72 bg-white/10 -top-16 -left-16" />
+        <div className="orb w-56 h-56 bg-violet-300/20 top-8 right-8" />
+        <div className="orb w-40 h-40 bg-pink-300/20 bottom-0 left-1/3" />
+
+        <div className="relative z-10 px-8 sm:px-12 py-12 sm:py-16 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-8">
+          {/* Left */}
+          <div className="max-w-lg">
+            <div className="flex items-center gap-2 mb-5">
+              <span className="glass-hero inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-white/90 text-xs font-bold">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                {batches.length} Courses Available
+                {batches.length} Premium Courses
               </span>
             </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight tracking-tight mb-2">
-              Unlock Free Learning
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-[1.1] tracking-tight mb-4">
+              Learn Smarter,<br />
+              <span className="text-white/80">Achieve More</span>
             </h1>
-            <p className="text-white/75 text-sm sm:text-base font-medium max-w-sm">
-              Premium PW batches — completely free. Start learning today.
+            <p className="text-white/65 text-sm sm:text-base font-medium leading-relaxed max-w-sm">
+              Access premium PW batches — top-quality lectures, notes & live classes. 100% free.
             </p>
+
+            {/* Feature pills */}
+            <div className="flex flex-wrap gap-2 mt-6">
+              {["HD Lectures", "PDF Notes", "Live Classes", "DPP Practice"].map((f) => (
+                <span key={f} className="glass-hero px-3 py-1.5 rounded-full text-white/85 text-xs font-semibold">
+                  {f}
+                </span>
+              ))}
+            </div>
           </div>
-          <div className="flex gap-3">
+
+          {/* Right stats */}
+          <div className="flex flex-row sm:flex-col gap-3 flex-shrink-0">
             {[
-              { icon: "🎓", label: "Batches", value: String(batches.length) },
-              { icon: "✅", label: "Free", value: "100%" },
+              { icon: "🎓", label: "Courses", value: String(batches.length), color: "text-white" },
+              { icon: "⚡", label: "Free", value: "100%", color: "text-emerald-300" },
+              { icon: "🎯", label: "Quality", value: "PW", color: "text-amber-300" },
             ].map((s) => (
-              <div key={s.label} className="stat-pill px-4 py-3 rounded-2xl text-center min-w-[80px]">
-                <div className="text-xl mb-0.5">{s.icon}</div>
-                <div className="text-white font-black text-lg leading-none">{s.value}</div>
-                <div className="text-white/60 text-[10px] font-medium mt-0.5 uppercase tracking-wide">{s.label}</div>
+              <div key={s.label} className="glass-hero px-5 py-3.5 rounded-2xl flex items-center gap-3 min-w-[130px]">
+                <span className="text-2xl">{s.icon}</span>
+                <div>
+                  <div className={`font-black text-lg leading-none ${s.color}`}>{s.value}</div>
+                  <div className="text-white/55 text-[11px] font-medium uppercase tracking-wider mt-0.5">{s.label}</div>
+                </div>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Search + Count Row */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+      {/* ── Feature stripe ── */}
+      <div className="stripe-bg rounded-2xl px-6 py-5 mb-8 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-6 flex-wrap">
+          {[
+            { icon: "📺", text: "Video Lectures" },
+            { icon: "📄", text: "PDF Notes" },
+            { icon: "🔴", text: "Live Sessions" },
+            { icon: "📋", text: "DPP Sheets" },
+          ].map((item) => (
+            <div key={item.text} className="flex items-center gap-2">
+              <span className="text-base">{item.icon}</span>
+              <span className="text-slate-600 text-sm font-semibold">{item.text}</span>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-1.5 text-indigo-600 text-sm font-bold">
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+          </svg>
+          All Free
+        </div>
+      </div>
+
+      {/* ── Search + count row ── */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-7">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">All Batches</h2>
-          <p className="text-slate-500 text-sm mt-0.5">
-            Showing <span className="font-semibold text-indigo-600">{paginated.length}</span> of{" "}
-            <span className="font-semibold">{filtered.length}</span> batches
+          <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">All Batches</h2>
+          <p className="text-slate-400 text-sm mt-0.5">
+            Showing{" "}
+            <span className="font-bold text-indigo-600">{paginated.length}</span>{" "}
+            of{" "}
+            <span className="font-bold text-slate-600">{filtered.length}</span>{" "}
+            batches
           </p>
         </div>
         <div className="w-full sm:w-80">
@@ -75,34 +118,44 @@ export default function BatchGrid({ batches }: { batches: Batch[] }) {
         </div>
       </div>
 
-      {/* Grid */}
+      {/* ── Grid ── */}
       {paginated.length === 0 ? (
-        <div className="text-center py-24">
-          <div className="w-20 h-20 rounded-3xl bg-indigo-50 flex items-center justify-center mx-auto mb-5">
-            <svg className="w-10 h-10 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="text-center py-28 animate-fade-in">
+          <div className="w-24 h-24 rounded-3xl bg-indigo-50 flex items-center justify-center mx-auto mb-6 shadow-inner">
+            <svg className="w-12 h-12 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </div>
-          <h3 className="text-slate-700 font-semibold text-lg mb-1">No results found</h3>
-          <p className="text-slate-400 text-sm">Try a different keyword</p>
+          <h3 className="text-slate-800 font-bold text-xl mb-2">No results found</h3>
+          <p className="text-slate-400 text-sm">Try a different keyword or browse all courses</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 animate-fade-up">
-          {paginated.map((batch) => (
-            <BatchCard key={batch.batchId} batch={batch} />
+          {paginated.map((batch, i) => (
+            <div
+              key={batch.batchId}
+              className="animate-fade-up"
+              style={{ animationDelay: `${Math.min(i * 30, 300)}ms` }}
+            >
+              <BatchCard batch={batch} />
+            </div>
           ))}
         </div>
       )}
 
+      {/* ── Load more ── */}
       {page < totalPages && (
-        <div className="flex justify-center mt-10">
+        <div className="flex justify-center mt-12">
           <button
             onClick={() => setPage((p) => p + 1)}
-            className="btn-purple text-white px-8 py-3 rounded-2xl font-semibold text-sm flex items-center gap-2"
+            className="btn-primary px-8 py-3.5 rounded-2xl font-bold text-sm flex items-center gap-2.5"
           >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
             Load More
-            <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">
-              {filtered.length - paginated.length} remaining
+            <span className="bg-white/20 px-2.5 py-0.5 rounded-full text-xs font-bold">
+              {filtered.length - paginated.length} left
             </span>
           </button>
         </div>
