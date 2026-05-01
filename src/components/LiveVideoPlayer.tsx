@@ -1,19 +1,23 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import Image from "next/image";
 
-interface VideoPlayerProps {
+interface LiveVideoPlayerProps {
+  /** Live class schedule / video ID */
+  videoId: string;
   batchId: string;
-  subjectId: string;
-  childId: string;
-  subjectSlug: string;
+  subjectId?: string;
+  subjectSlug?: string;
   title: string;
+  /** Whether the class is currently live (true) or a completed recording (false) */
+  isLive?: boolean;
   onClose: () => void;
 }
 
 interface VideoData {
   success: boolean;
-  type?: "drm" | "hls" | "mp4" | "youtube";
+  type?: "drm" | "hls" | "mp4" | "youtube" | "live";
   mpdUrl?: string;
   hlsUrl?: string;
   videoUrl?: string;
@@ -28,14 +32,15 @@ interface QualityLevel {
   index: number;
 }
 
-export default function VideoPlayer({
+export default function LiveVideoPlayer({
+  videoId,
   batchId,
-  subjectId,
-  childId,
-  subjectSlug,
+  subjectId = "",
+  subjectSlug = "",
   title,
+  isLive = false,
   onClose,
-}: VideoPlayerProps) {
+}: LiveVideoPlayerProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [progress, setProgress] = useState("");
@@ -54,15 +59,15 @@ export default function VideoPlayer({
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [qualities, setQualities] = useState<QualityLevel[]>([]);
-  const [currentQuality, setCurrentQuality] = useState(-1); // -1 = auto
+  const [currentQuality, setCurrentQuality] = useState(-1);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const shakaRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const hlsRef = useRef<any>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -72,11 +77,10 @@ export default function VideoPlayer({
     setLoading(true);
     setError("");
     setYoutubeUrl(null);
-    setProgress("Fetching video info...");
+    setProgress("Fetching class video...");
     setQualities([]);
     setCurrentQuality(-1);
 
-    // Cleanup previous
     if (shakaRef.current) {
       await shakaRef.current.destroy().catch(() => {});
       shakaRef.current = null;
@@ -88,12 +92,14 @@ export default function VideoPlayer({
 
     try {
       const params = new URLSearchParams({
-        batchId,
-        subjectId,
-        childId,
-        ...(subjectSlug ? { subjectSlug } : {}),
+        video_id: videoId,
+        batch_id: batchId,
+        schedule_id: videoId,
+        ...(subjectId ? { subject_id: subjectId } : {}),
+        ...(subjectSlug ? { subject_slug: subjectSlug } : {}),
       });
-      const res = await fetch(`/api/video-url?${params.toString()}`);
+
+      const res = await fetch(`/api/live-video?${params.toString()}`);
       const data: VideoData = await res.json();
 
       if (!data.success) {
@@ -117,11 +123,10 @@ export default function VideoPlayer({
         shaka.default.polyfill.installAll();
 
         if (!shaka.default.Player.isBrowserSupported()) {
-          // DRM not supported → try HLS
           if (data.hlsUrl) {
             await loadHls(video, data.hlsUrl);
           } else {
-            setError("Your browser does not support this video format");
+            setError("Your browser does not support DRM video");
             setLoading(false);
           }
           return;
@@ -131,19 +136,16 @@ export default function VideoPlayer({
         await player.attach(video);
         shakaRef.current = player;
 
-        // CloudFront auth query string forwarding
         const mpdParts = data.mpdUrl.split("?");
         if (mpdParts.length > 1) {
           const queryString = "?" + mpdParts[1];
           const engine = player.getNetworkingEngine();
           if (engine) {
-            engine.registerRequestFilter(
-              (type: number, request: { uris: string[] }) => {
-                if ((type === 0 || type === 1) && !request.uris[0].includes("?")) {
-                  request.uris[0] += queryString;
-                }
+            engine.registerRequestFilter((type: number, request: { uris: string[] }) => {
+              if ((type === 0 || type === 1) && !request.uris[0].includes("?")) {
+                request.uris[0] += queryString;
               }
-            );
+            });
           }
         }
 
@@ -153,7 +155,7 @@ export default function VideoPlayer({
 
         player.addEventListener("error", (event: Event) => {
           const detail = (event as Event & { detail?: { message?: string } })?.detail;
-          setError(detail?.message || "Video playback error");
+          setError(detail?.message || "Playback error");
         });
 
         player.addEventListener("variantschanged", () => {
@@ -161,20 +163,28 @@ export default function VideoPlayer({
           const tracks = shakaRef.current.getVariantTracks();
           const qs: QualityLevel[] = tracks
             .filter((t: { height: number }) => t.height)
-            .map((t: { height: number; bandwidth: number }, i: number) => ({ height: t.height ?? 0, bitrate: t.bandwidth, index: i }))
+            .map((t: { height: number; bandwidth: number }, i: number) => ({ height: t.height, bitrate: t.bandwidth, index: i }))
             .sort((a: QualityLevel, b: QualityLevel) => b.height - a.height);
           setQualities(qs);
         });
 
-        setProgress("Loading video stream...");
+        setProgress("Loading stream...");
         await player.load(data.mpdUrl);
         video.play().catch(() => {});
         setLoading(false);
         setPlaying(true);
-      } else if ((data.type === "hls" || data.type === "drm") && (data.hlsUrl || data.videoUrl)) {
-        const hlsSource = data.hlsUrl || data.videoUrl || "";
-        await loadHls(video, hlsSource);
-      } else if (data.videoUrl) {
+        return;
+      }
+
+      // HLS
+      const hlsSrc = data.hlsUrl || data.videoUrl || "";
+      if ((data.type === "hls" || data.type === "drm" || data.type === "live") && hlsSrc) {
+        await loadHls(video, hlsSrc);
+        return;
+      }
+
+      // MP4 / direct
+      if (data.videoUrl) {
         setProgress("Loading video...");
         video.src = data.videoUrl;
         video.addEventListener("loadedmetadata", () => {
@@ -186,16 +196,17 @@ export default function VideoPlayer({
           setError("Failed to load video");
           setLoading(false);
         }, { once: true });
-      } else {
-        setError("No playable video URL found");
-        setLoading(false);
+        return;
       }
+
+      setError("No playable URL found");
+      setLoading(false);
     } catch {
       setError("Failed to load video");
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [batchId, subjectId, childId, subjectSlug]);
+  }, [videoId, batchId, subjectId, subjectSlug]);
 
   async function loadHls(video: HTMLVideoElement, src: string) {
     setProgress("Loading HLS stream...");
@@ -203,29 +214,34 @@ export default function VideoPlayer({
     if (Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: true,
-        lowLatencyMode: false,
+        lowLatencyMode: isLive,
         startLevel: -1,
       });
-      hlsRef.current = hls as typeof hlsRef.current;
+      hlsRef.current = hls;
       hls.loadSource(src);
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        const lvls: QualityLevel[] = hls.levels.map((l, i) => ({
+        const lvls: QualityLevel[] = hls.levels.map((l: { height: number; bitrate: number }, i: number) => ({
           height: l.height || 0,
           bitrate: l.bitrate || 0,
           index: i,
-        })).sort((a, b) => b.height - a.height);
+        })).sort((a: QualityLevel, b: QualityLevel) => b.height - a.height);
         setQualities(lvls);
         video.play().catch(() => {});
         setLoading(false);
         setPlaying(true);
       });
 
-      hls.on(Hls.Events.ERROR, (_event: unknown, errData: { fatal?: boolean }) => {
+      hls.on(Hls.Events.ERROR, (_: unknown, errData: { fatal?: boolean; details?: string }) => {
         if (errData.fatal) {
-          setError("HLS playback error. Please retry.");
-          setLoading(false);
+          // If it's a network/media error on a live stream, try to recover
+          if (isLive && errData.details?.includes("networkError")) {
+            hls.startLoad();
+          } else {
+            setError(`HLS error: ${errData.details || "playback failed"}. Please retry.`);
+            setLoading(false);
+          }
         }
       });
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
@@ -236,7 +252,7 @@ export default function VideoPlayer({
         setPlaying(true);
       }, { once: true });
     } else {
-      setError("HLS not supported in this browser");
+      setError("HLS playback not supported in this browser");
       setLoading(false);
     }
   }
@@ -253,27 +269,19 @@ export default function VideoPlayer({
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
     const onTimeUpdate = () => {
       setCurrentTime(video.currentTime);
-      if (video.buffered.length > 0) {
-        setBuffered(video.buffered.end(video.buffered.length - 1));
-      }
+      if (video.buffered.length > 0) setBuffered(video.buffered.end(video.buffered.length - 1));
     };
     const onDurationChange = () => setDuration(video.duration || 0);
-    const onVolumeChange = () => {
-      setVolume(video.volume);
-      setMuted(video.muted);
-    };
-
+    const onVolumeChange = () => { setVolume(video.volume); setMuted(video.muted); };
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
     video.addEventListener("timeupdate", onTimeUpdate);
     video.addEventListener("durationchange", onDurationChange);
     video.addEventListener("volumechange", onVolumeChange);
-
     return () => {
       video.removeEventListener("play", onPlay);
       video.removeEventListener("pause", onPause);
@@ -286,15 +294,12 @@ export default function VideoPlayer({
   // ─── Keyboard Shortcuts ───────────────────────────────────────────────────
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      const video = videoRef.current;
-      if (!video || youtubeUrl) return;
+      if (youtubeUrl) return;
       switch (e.key) {
         case "Escape": onClose(); break;
         case " ": case "k": e.preventDefault(); togglePlay(); break;
         case "ArrowRight": e.preventDefault(); skip(10); break;
         case "ArrowLeft": e.preventDefault(); skip(-10); break;
-        case "ArrowUp": e.preventDefault(); adjustVolume(0.1); break;
-        case "ArrowDown": e.preventDefault(); adjustVolume(-0.1); break;
         case "f": toggleFullscreen(); break;
         case "m": toggleMute(); break;
       }
@@ -304,16 +309,12 @@ export default function VideoPlayer({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onClose, youtubeUrl]);
 
-  // ─── Fullscreen Listener ──────────────────────────────────────────────────
   useEffect(() => {
-    const onFsChange = () => {
-      setFullscreen(!!document.fullscreenElement);
-    };
+    const onFsChange = () => setFullscreen(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", onFsChange);
     return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
 
-  // ─── Controls auto-hide ───────────────────────────────────────────────────
   const resetControlsTimer = () => {
     setShowControls(true);
     if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
@@ -322,7 +323,6 @@ export default function VideoPlayer({
     }, 3000);
   };
 
-  // ─── Player Controls ──────────────────────────────────────────────────────
   function togglePlay() {
     const video = videoRef.current;
     if (!video) return;
@@ -332,16 +332,9 @@ export default function VideoPlayer({
 
   function skip(seconds: number) {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || isLive) return;
     video.currentTime = Math.max(0, Math.min(video.currentTime + seconds, video.duration || 0));
     resetControlsTimer();
-  }
-
-  function adjustVolume(delta: number) {
-    const video = videoRef.current;
-    if (!video) return;
-    video.volume = Math.max(0, Math.min(1, video.volume + delta));
-    video.muted = false;
   }
 
   function toggleMute() {
@@ -353,16 +346,13 @@ export default function VideoPlayer({
   function toggleFullscreen() {
     const el = wrapperRef.current;
     if (!el) return;
-    if (!document.fullscreenElement) {
-      el.requestFullscreen().catch(() => {});
-    } else {
-      document.exitFullscreen().catch(() => {});
-    }
+    if (!document.fullscreenElement) el.requestFullscreen().catch(() => {});
+    else document.exitFullscreen().catch(() => {});
   }
 
   function seekTo(e: React.MouseEvent<HTMLDivElement>) {
     const video = videoRef.current;
-    if (!video || !duration) return;
+    if (!video || !duration || isLive) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const pct = (e.clientX - rect.left) / rect.width;
     video.currentTime = pct * duration;
@@ -378,29 +368,27 @@ export default function VideoPlayer({
   }
 
   function setQuality(index: number) {
-    // HLS quality
     if (hlsRef.current) {
-      hlsRef.current.currentLevel = index; // -1 = auto
+      hlsRef.current.currentLevel = index;
       setCurrentQuality(index);
       setShowQualityMenu(false);
       return;
     }
-    // Shaka quality
-    if (shakaRef.current && index >= 0) {
-      const tracks = shakaRef.current.getVariantTracks();
-      if (tracks[index]) {
-        shakaRef.current.selectVariantTrack(tracks[index], true);
-        shakaRef.current.configure({ abr: { enabled: false } });
+    if (shakaRef.current) {
+      if (index === -1) {
+        shakaRef.current.configure({ abr: { enabled: true } });
+      } else {
+        const tracks = shakaRef.current.getVariantTracks();
+        if (tracks[index]) {
+          shakaRef.current.selectVariantTrack(tracks[index], true);
+          shakaRef.current.configure({ abr: { enabled: false } });
+        }
       }
       setCurrentQuality(index);
-    } else if (shakaRef.current && index === -1) {
-      shakaRef.current.configure({ abr: { enabled: true } });
-      setCurrentQuality(-1);
     }
     setShowQualityMenu(false);
   }
 
-  // ─── Helpers ──────────────────────────────────────────────────────────────
   function formatTime(s: number): string {
     if (!s || isNaN(s)) return "0:00";
     const h = Math.floor(s / 3600);
@@ -422,12 +410,20 @@ export default function VideoPlayer({
       <div className="relative w-full max-w-5xl">
         {/* Title bar */}
         <div className="flex items-center justify-between mb-2 px-1">
-          <h2 className="text-white font-semibold text-base line-clamp-1 flex-1 mr-4 opacity-90">
-            {title}
-          </h2>
+          <div className="flex items-center gap-2 flex-1 mr-4 min-w-0">
+            {isLive && (
+              <span className="flex-shrink-0 flex items-center gap-1 px-2 py-0.5 bg-red-600 rounded text-white text-xs font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                LIVE
+              </span>
+            )}
+            <h2 className="text-white font-semibold text-base line-clamp-1 opacity-90">
+              {title}
+            </h2>
+          </div>
           <button
             onClick={onClose}
-            className="text-white/60 hover:text-white text-2xl leading-none px-2 transition-colors"
+            className="text-white/60 hover:text-white text-2xl leading-none px-2 transition-colors flex-shrink-0"
             title="Close (Esc)"
           >
             &times;
@@ -437,27 +433,30 @@ export default function VideoPlayer({
         {/* Player wrapper */}
         <div
           ref={wrapperRef}
-          className="relative aspect-video bg-black rounded-xl overflow-hidden group"
+          className="relative aspect-video bg-black rounded-xl overflow-hidden"
           onMouseMove={resetControlsTimer}
           onMouseEnter={resetControlsTimer}
           onClick={() => { if (!youtubeUrl && !loading && !error) { togglePlay(); resetControlsTimer(); } }}
         >
-          {/* Loading overlay */}
+          {/* Loading */}
           {loading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black/60">
-              <div className="animate-spin w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full mb-3" />
+              <div className="animate-spin w-12 h-12 border-4 border-red-500 border-t-transparent rounded-full mb-3" />
               <p className="text-white/70 text-sm">{progress}</p>
             </div>
           )}
 
-          {/* Error overlay */}
+          {/* Error */}
           {error && !loading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black">
-              <div className="text-5xl mb-3 opacity-40">⚠</div>
-              <p className="text-red-400 text-base mb-4 text-center px-4">{error}</p>
+              {/* PW logo fallback */}
+              <div className="mb-4 opacity-30">
+                <Image src="/pw-logo.jpg" alt="PW" width={80} height={80} className="rounded-full" unoptimized />
+              </div>
+              <p className="text-red-400 text-base mb-4 text-center px-4 max-w-sm">{error}</p>
               <button
                 onClick={(e) => { e.stopPropagation(); loadVideo(); }}
-                className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+                className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
               >
                 Retry
               </button>
@@ -484,147 +483,114 @@ export default function VideoPlayer({
             />
           )}
 
-          {/* Custom Controls */}
+          {/* Controls */}
           {!youtubeUrl && !error && (
             <div
               className={`absolute inset-0 flex flex-col justify-end transition-opacity duration-300 ${showControls || !playing ? "opacity-100" : "opacity-0"}`}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Gradient overlay */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
 
-              {/* Skip indicators */}
-              <div className="absolute inset-0 flex pointer-events-none">
-                <div className="flex-1" />
-                <div className="flex-1" />
-              </div>
-
               <div className="relative z-10 px-4 pb-3">
-                {/* Progress bar */}
-                <div
-                  className="relative h-1 hover:h-2 bg-white/20 rounded-full cursor-pointer mb-3 transition-all duration-150 group/bar"
-                  onClick={seekTo}
-                >
-                  {/* Buffered */}
+                {/* Progress bar (hidden for live) */}
+                {!isLive && (
                   <div
-                    className="absolute top-0 left-0 h-full bg-white/30 rounded-full pointer-events-none"
-                    style={{ width: `${bufferedPct}%` }}
-                  />
-                  {/* Progress */}
-                  <div
-                    className="absolute top-0 left-0 h-full bg-purple-500 rounded-full pointer-events-none"
-                    style={{ width: `${progressPct}%` }}
-                  />
-                  {/* Thumb */}
-                  <div
-                    className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-purple-500 rounded-full -translate-x-1/2 opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none"
-                    style={{ left: `${progressPct}%` }}
-                  />
-                </div>
+                    className="relative h-1 hover:h-2 bg-white/20 rounded-full cursor-pointer mb-3 transition-all duration-150 group/bar"
+                    onClick={seekTo}
+                  >
+                    <div className="absolute top-0 left-0 h-full bg-white/30 rounded-full pointer-events-none" style={{ width: `${bufferedPct}%` }} />
+                    <div className="absolute top-0 left-0 h-full bg-red-500 rounded-full pointer-events-none" style={{ width: `${progressPct}%` }} />
+                    <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-red-500 rounded-full -translate-x-1/2 opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none" style={{ left: `${progressPct}%` }} />
+                  </div>
+                )}
 
-                {/* Bottom controls row */}
+                {/* For live streams show LIVE indicator */}
+                {isLive && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-1 flex-1 bg-red-600 rounded-full" />
+                    <span className="text-xs text-white/60 flex-shrink-0">LIVE</span>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2 sm:gap-3">
                   {/* Play/Pause */}
-                  <button
-                    onClick={togglePlay}
-                    className="text-white hover:text-purple-300 transition-colors flex-shrink-0"
-                    title={playing ? "Pause (Space)" : "Play (Space)"}
-                  >
+                  <button onClick={togglePlay} className="text-white hover:text-red-300 transition-colors flex-shrink-0">
                     {playing ? (
-                      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                      </svg>
+                      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
                     ) : (
-                      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 5v14l11-7z" />
-                      </svg>
+                      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                     )}
                   </button>
 
-                  {/* Skip back 10s */}
-                  <button
-                    onClick={() => skip(-10)}
-                    className="text-white hover:text-purple-300 transition-colors flex-shrink-0"
-                    title="Back 10s (←)"
-                  >
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
-                      <text x="8.5" y="15" fontSize="5" fill="currentColor">10</text>
-                    </svg>
-                  </button>
-
-                  {/* Skip forward 10s */}
-                  <button
-                    onClick={() => skip(10)}
-                    className="text-white hover:text-purple-300 transition-colors flex-shrink-0"
-                    title="Forward 10s (→)"
-                  >
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/>
-                      <text x="8.5" y="15" fontSize="5" fill="currentColor">10</text>
-                    </svg>
-                  </button>
+                  {/* Skip (only for recordings) */}
+                  {!isLive && (
+                    <>
+                      <button onClick={() => skip(-10)} className="text-white hover:text-red-300 transition-colors flex-shrink-0" title="Back 10s">
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+                        </svg>
+                      </button>
+                      <button onClick={() => skip(10)} className="text-white hover:text-red-300 transition-colors flex-shrink-0" title="Forward 10s">
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/>
+                        </svg>
+                      </button>
+                    </>
+                  )}
 
                   {/* Volume */}
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <button onClick={toggleMute} className="text-white hover:text-purple-300 transition-colors" title="Mute (m)">
+                    <button onClick={toggleMute} className="text-white hover:text-red-300 transition-colors">
                       {muted || volume === 0 ? (
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
-                        </svg>
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" /></svg>
                       ) : (
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
-                        </svg>
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" /></svg>
                       )}
                     </button>
                     <input
-                      type="range"
-                      min={0}
-                      max={1}
-                      step={0.05}
+                      type="range" min={0} max={1} step={0.05}
                       value={muted ? 0 : volume}
                       onChange={(e) => {
                         const v = parseFloat(e.target.value);
-                        if (videoRef.current) {
-                          videoRef.current.volume = v;
-                          videoRef.current.muted = v === 0;
-                        }
+                        if (videoRef.current) { videoRef.current.volume = v; videoRef.current.muted = v === 0; }
                       }}
-                      className="w-16 sm:w-20 accent-purple-500 cursor-pointer"
+                      className="w-14 sm:w-20 accent-red-500 cursor-pointer"
                     />
                   </div>
 
                   {/* Time */}
-                  <span className="text-white/70 text-xs flex-shrink-0 font-mono hidden sm:block">
-                    {formatTime(currentTime)} / {formatTime(duration)}
-                  </span>
+                  {!isLive && (
+                    <span className="text-white/70 text-xs flex-shrink-0 font-mono hidden sm:block">
+                      {formatTime(currentTime)} / {formatTime(duration)}
+                    </span>
+                  )}
 
                   <div className="flex-1" />
 
-                  {/* Speed */}
-                  <div className="relative flex-shrink-0">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setShowSpeedMenu(!showSpeedMenu); setShowQualityMenu(false); }}
-                      className="text-white/80 hover:text-white text-xs font-medium px-2 py-1 rounded bg-white/10 hover:bg-white/20 transition-colors"
-                      title="Playback speed"
-                    >
-                      {playbackRate}x
-                    </button>
-                    {showSpeedMenu && (
-                      <div className="absolute bottom-full right-0 mb-2 bg-gray-900 border border-white/10 rounded-lg overflow-hidden min-w-[80px] shadow-xl z-30">
-                        {SPEEDS.map((s) => (
-                          <button
-                            key={s}
-                            onClick={(e) => { e.stopPropagation(); setSpeed(s); }}
-                            className={`w-full text-left px-4 py-2 text-sm transition-colors ${playbackRate === s ? "text-purple-400 bg-purple-500/10 font-semibold" : "text-white hover:bg-white/10"}`}
-                          >
-                            {s}x
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  {/* Speed (not for live) */}
+                  {!isLive && (
+                    <div className="relative flex-shrink-0">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setShowSpeedMenu(!showSpeedMenu); setShowQualityMenu(false); }}
+                        className="text-white/80 hover:text-white text-xs font-medium px-2 py-1 rounded bg-white/10 hover:bg-white/20 transition-colors"
+                      >
+                        {playbackRate}x
+                      </button>
+                      {showSpeedMenu && (
+                        <div className="absolute bottom-full right-0 mb-2 bg-gray-900 border border-white/10 rounded-lg overflow-hidden min-w-[80px] shadow-xl z-30">
+                          {SPEEDS.map((s) => (
+                            <button
+                              key={s}
+                              onClick={(e) => { e.stopPropagation(); setSpeed(s); }}
+                              className={`w-full text-left px-4 py-2 text-sm transition-colors ${playbackRate === s ? "text-red-400 bg-red-500/10 font-semibold" : "text-white hover:bg-white/10"}`}
+                            >
+                              {s}x
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Quality */}
                   {qualities.length > 0 && (
@@ -632,7 +598,6 @@ export default function VideoPlayer({
                       <button
                         onClick={(e) => { e.stopPropagation(); setShowQualityMenu(!showQualityMenu); setShowSpeedMenu(false); }}
                         className="text-white/80 hover:text-white text-xs font-medium px-2 py-1 rounded bg-white/10 hover:bg-white/20 transition-colors"
-                        title="Video quality"
                       >
                         {currentQuality === -1 ? "Auto" : `${qualities.find((q) => q.index === currentQuality)?.height || ""}p`}
                       </button>
@@ -640,7 +605,7 @@ export default function VideoPlayer({
                         <div className="absolute bottom-full right-0 mb-2 bg-gray-900 border border-white/10 rounded-lg overflow-hidden min-w-[80px] shadow-xl z-30">
                           <button
                             onClick={(e) => { e.stopPropagation(); setQuality(-1); }}
-                            className={`w-full text-left px-4 py-2 text-sm transition-colors ${currentQuality === -1 ? "text-purple-400 bg-purple-500/10 font-semibold" : "text-white hover:bg-white/10"}`}
+                            className={`w-full text-left px-4 py-2 text-sm transition-colors ${currentQuality === -1 ? "text-red-400 bg-red-500/10 font-semibold" : "text-white hover:bg-white/10"}`}
                           >
                             Auto
                           </button>
@@ -648,7 +613,7 @@ export default function VideoPlayer({
                             <button
                               key={q.index}
                               onClick={(e) => { e.stopPropagation(); setQuality(q.index); }}
-                              className={`w-full text-left px-4 py-2 text-sm transition-colors ${currentQuality === q.index ? "text-purple-400 bg-purple-500/10 font-semibold" : "text-white hover:bg-white/10"}`}
+                              className={`w-full text-left px-4 py-2 text-sm transition-colors ${currentQuality === q.index ? "text-red-400 bg-red-500/10 font-semibold" : "text-white hover:bg-white/10"}`}
                             >
                               {q.height}p
                             </button>
@@ -661,17 +626,13 @@ export default function VideoPlayer({
                   {/* Fullscreen */}
                   <button
                     onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
-                    className="text-white hover:text-purple-300 transition-colors flex-shrink-0"
+                    className="text-white hover:text-red-300 transition-colors flex-shrink-0"
                     title="Fullscreen (f)"
                   >
                     {fullscreen ? (
-                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" />
-                      </svg>
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" /></svg>
                     ) : (
-                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
-                      </svg>
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" /></svg>
                     )}
                   </button>
                 </div>

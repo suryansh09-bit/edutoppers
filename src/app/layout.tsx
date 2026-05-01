@@ -8,8 +8,8 @@ const geist = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "PW Dashboard",
-  description: "Physics Wallah Batch Dashboard",
+  title: "EduToppers",
+  description: "Free Education For Every Student",
 };
 
 export default function RootLayout({

@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import VideoPlayer from "./VideoPlayer";
+import LiveVideoPlayer from "./LiveVideoPlayer";
 import type { Subject, Teacher, BatchDetail } from "@/lib/types";
 
 interface BatchTabsProps {
@@ -310,12 +310,13 @@ function LiveClasses({ batchId }: { batchId: string }) {
   return (
     <>
       {playingClass && (
-        <VideoPlayer
+        <LiveVideoPlayer
+          videoId={playingClass.videoDetails?.findKey || playingClass._id}
           batchId={batchId}
           subjectId={playingClass.subjectId?._id || ""}
-          childId={playingClass.videoDetails?.findKey || playingClass._id}
           subjectSlug={playingClass.subjectId?.slug || ""}
           title={playingClass.topic || playingClass.videoDetails?.name || "Live Class"}
+          isLive={getClassStatus(playingClass).label === "LIVE"}
           onClose={() => setPlayingClass(null)}
         />
       )}
@@ -329,39 +330,60 @@ function LiveClasses({ batchId }: { batchId: string }) {
           const subjectName = cls.subjectId?.name || "";
           const gradient = getSubjectGradient(subjectName);
           const initials = getSubjectInitials(subjectName);
-          const isPlayable = statusLabel === "Completed" || statusLabel === "LIVE" || cls.tag === "Ended";
+          const isPlayable = statusLabel === "Completed" || statusLabel === "LIVE" || cls.tag === "Ended" || !!cls.videoDetails;
+          const thumbnailImage = cls.videoDetails?.image || null;
 
           return (
             <div
               key={cls._id}
               className={`card-gradient rounded-xl overflow-hidden transition-all duration-300 hover:scale-[1.02] ${isPlayable ? "cursor-pointer" : ""}`}
-              onClick={() => {
-                if (isPlayable) setPlayingClass(cls);
-              }}
+              onClick={() => { if (isPlayable) setPlayingClass(cls); }}
             >
-              <div className={`relative aspect-video bg-gradient-to-br ${gradient} flex items-center justify-center`}>
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center">
-                    <span className="text-white font-bold text-xl">{initials}</span>
+              <div className={`relative aspect-video ${thumbnailImage ? "bg-black" : `bg-gradient-to-br ${gradient}`} flex items-center justify-center overflow-hidden`}>
+                {thumbnailImage ? (
+                  <Image
+                    src={thumbnailImage}
+                    alt={title}
+                    fill
+                    className="object-cover"
+                    unoptimized
+                    sizes="(max-width: 640px) 100vw, 33vw"
+                  />
+                ) : (
+                  /* PW logo fallback for classes without images */
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-16 h-16 rounded-full overflow-hidden bg-white/10 backdrop-blur-sm flex items-center justify-center">
+                      <Image
+                        src="/pw-logo.jpg"
+                        alt="PW"
+                        width={64}
+                        height={64}
+                        className="w-full h-full object-cover rounded-full"
+                        unoptimized
+                      />
+                    </div>
+                    {subjectName && (
+                      <p className="text-white/80 text-xs font-medium text-center px-4 line-clamp-1">
+                        {subjectName}
+                      </p>
+                    )}
+                    {!subjectName && (
+                      <p className="text-white/60 text-xs font-medium text-center px-4 line-clamp-1">
+                        {initials}
+                      </p>
+                    )}
                   </div>
-                  {subjectName && (
-                    <p className="text-white/80 text-xs font-medium text-center px-4 line-clamp-1">
-                      {subjectName}
-                    </p>
-                  )}
-                </div>
+                )}
                 {isPlayable && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 hover:opacity-100 transition-opacity">
-                    <div className="w-14 h-14 rounded-full bg-accent-purple/90 flex items-center justify-center">
+                    <div className="w-14 h-14 rounded-full bg-red-600/90 flex items-center justify-center shadow-lg">
                       <span className="text-white text-2xl ml-1">&#9654;</span>
                     </div>
                   </div>
                 )}
                 {statusLabel && (
                   <div className="absolute top-2 right-2">
-                    <span
-                      className={`px-2 py-1 rounded-md text-xs font-bold ${statusColor}`}
-                    >
+                    <span className={`px-2 py-1 rounded-md text-xs font-bold ${statusColor}`}>
                       {statusLabel}
                     </span>
                   </div>
@@ -375,16 +397,11 @@ function LiveClasses({ batchId }: { batchId: string }) {
                 )}
               </div>
               <div className="p-4">
-                <h3 className="text-white font-semibold text-sm mb-2 line-clamp-2">
-                  {title}
-                </h3>
+                <h3 className="text-white font-semibold text-sm mb-2 line-clamp-2">{title}</h3>
                 {tagNames.length > 0 && (
                   <div className="flex flex-wrap gap-1 mb-2">
                     {tagNames.map((tag) => (
-                      <span
-                        key={tag}
-                        className="text-xs px-2 py-0.5 rounded-full bg-accent-purple/20 text-accent-purple"
-                      >
+                      <span key={tag} className="text-xs px-2 py-0.5 rounded-full bg-accent-purple/20 text-accent-purple">
                         {tag}
                       </span>
                     ))}
@@ -394,20 +411,11 @@ function LiveClasses({ batchId }: { batchId: string }) {
                   {startTime && (
                     <p>
                       {new Date(startTime).toLocaleString("en-US", {
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
+                        weekday: "short", month: "short", day: "numeric",
+                        hour: "2-digit", minute: "2-digit",
                       })}
                       {endTime && (
-                        <span>
-                          {" - "}
-                          {new Date(endTime).toLocaleString("en-US", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
+                        <span>{" - "}{new Date(endTime).toLocaleString("en-US", { hour: "2-digit", minute: "2-digit" })}</span>
                       )}
                     </p>
                   )}
