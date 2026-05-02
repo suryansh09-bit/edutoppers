@@ -31,8 +31,7 @@ export const metadata: Metadata = {
   applicationName: "EduToppers",
   icons: {
     icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/edutoppers-logo.png", type: "image/png", sizes: "192x192" },
+      { url: "/edutoppers-logo.png", type: "image/png", sizes: "any" },
     ],
     apple: "/edutoppers-logo.png",
     shortcut: "/edutoppers-logo.png",
@@ -63,6 +62,10 @@ export default function RootLayout({
   return (
     <html lang="en" className="antialiased">
       <head>
+        {/* Favicon — explicit tags override any Next.js defaults */}
+        <link rel="icon" type="image/png" href="/edutoppers-logo.png" />
+        <link rel="shortcut icon" href="/edutoppers-logo.png" />
+        <link rel="apple-touch-icon" href="/edutoppers-logo.png" />
         {/* Cloudflare Turnstile script — loaded for the video verification gate */}
         <Script
           src="https://challenges.cloudflare.com/turnstile/v0/api.js"
