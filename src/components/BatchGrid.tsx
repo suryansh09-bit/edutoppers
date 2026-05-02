@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import type { Batch } from "@/lib/types";
 import BatchCard from "./BatchCard";
 import SearchBar from "./SearchBar";
@@ -54,21 +55,37 @@ export default function BatchGrid({ batches }: { batches: Batch[] }) {
             </div>
           </div>
 
-          {/* Right stats */}
-          <div className="flex flex-row sm:flex-col gap-3 flex-shrink-0">
-            {[
-              { icon: "🎓", label: "Courses", value: String(batches.length), color: "text-white" },
-              { icon: "⚡", label: "Free", value: "100%", color: "text-emerald-300" },
-              { icon: "🎯", label: "Quality", value: "PW", color: "text-amber-300" },
-            ].map((s) => (
-              <div key={s.label} className="glass-hero px-5 py-3.5 rounded-2xl flex items-center gap-3 min-w-[130px]">
-                <span className="text-2xl">{s.icon}</span>
-                <div>
-                  <div className={`font-black text-lg leading-none ${s.color}`}>{s.value}</div>
-                  <div className="text-white/55 text-[11px] font-medium uppercase tracking-wider mt-0.5">{s.label}</div>
-                </div>
+          {/* Right: PW logo + stats */}
+          <div className="flex flex-col items-center gap-4 flex-shrink-0">
+            {/* PW Logo — medium size, elevated */}
+            <div className="glass-hero rounded-3xl p-3 shadow-xl shadow-black/30">
+              <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl overflow-hidden ring-2 ring-white/20 shadow-lg">
+                <Image
+                  src="/pw-logo.jpg"
+                  alt="Physics Wallah"
+                  width={144}
+                  height={144}
+                  className="w-full h-full object-cover"
+                  unoptimized
+                />
               </div>
-            ))}
+              <p className="text-white/65 text-[10px] font-bold uppercase tracking-widest text-center mt-2">
+                Physics Wallah
+              </p>
+            </div>
+
+            {/* Stats row */}
+            <div className="flex flex-row gap-2.5">
+              {[
+                { label: "Courses", value: String(batches.length), color: "text-white" },
+                { label: "Free", value: "100%", color: "text-emerald-300" },
+              ].map((s) => (
+                <div key={s.label} className="glass-hero px-4 py-2.5 rounded-2xl flex flex-col items-center gap-0.5 min-w-[70px]">
+                  <div className={`font-black text-base leading-none ${s.color}`}>{s.value}</div>
+                  <div className="text-white/50 text-[10px] font-medium uppercase tracking-wider">{s.label}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
