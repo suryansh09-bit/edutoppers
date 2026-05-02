@@ -30,16 +30,41 @@ export default function TelegramPopup() {
 
   return (
     <div
-      className={`fixed inset-0 z-[999] flex items-end sm:items-center justify-center p-4 transition-all duration-350 ${closing ? "opacity-0" : "opacity-100"}`}
-      style={{ background: "rgba(2, 4, 12, 0.7)", backdropFilter: "blur(6px)" }}
+      className={`fixed inset-0 flex items-end sm:items-center justify-center p-4 ${closing ? "opacity-0" : "opacity-100"}`}
+      style={{
+        zIndex: 99999,
+        background: "rgba(2, 4, 12, 0.75)",
+        backdropFilter: "blur(6px)",
+        transition: "opacity 0.35s ease",
+        pointerEvents: "auto",
+        filter: "none",
+        WebkitFilter: "none",
+      }}
       onClick={dismiss}
     >
       <div
-        className={`relative w-full max-w-md transition-all duration-350 ${closing ? "scale-95 translate-y-4 opacity-0" : "scale-100 translate-y-0 opacity-100"}`}
+        className={`relative w-full max-w-md ${closing ? "scale-95 translate-y-4 opacity-0" : "scale-100 translate-y-0 opacity-100"}`}
+        style={{
+          transition: "all 0.35s cubic-bezier(0.22,1,0.36,1)",
+          pointerEvents: "auto",
+          filter: "none",
+          WebkitFilter: "none",
+          userSelect: "text",
+          WebkitUserSelect: "text",
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Card */}
-        <div className="rounded-3xl overflow-hidden shadow-2xl" style={{ background: "linear-gradient(135deg, #0d1117 0%, #111827 100%)", border: "1px solid rgba(255,255,255,0.08)" }}>
+        <div
+          className="rounded-3xl overflow-hidden shadow-2xl"
+          style={{
+            background: "linear-gradient(135deg, #0d1117 0%, #111827 100%)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            pointerEvents: "auto",
+            filter: "none",
+            WebkitFilter: "none",
+          }}
+        >
 
           {/* Top banner */}
           <div className="relative px-6 pt-6 pb-4 text-center overflow-hidden"
