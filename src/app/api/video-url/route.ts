@@ -260,28 +260,57 @@ export async function GET(request: NextRequest) {
       );
 
       if (kidData?.success && kidData.kid) {
-        const otpParams = new URLSearchParams({ kid: kidData.kid as string });
-        if (subjectSlug) otpParams.set("subject_slug", subjectSlug);
-        if (batchId) otpParams.set("batch_id", batchId);
-        if (subjectId) otpParams.set("subject_id", subjectId);
-        const otpData = await tryFetch(
-          `${PROXY_BASE}/api/pw/otp?${otpParams.toString()}`
-        );
+        const kid = kidData.kid as string;
 
-        if (otpData?.success && otpData.key) {
+        // Try OTP with different parameter combinations
+        let otpKey: string | null = null;
+
+        // Attempt 1: all params
+        const otpParams1 = new URLSearchParams({ kid });
+        if (subjectSlug) otpParams1.set("subject_slug", subjectSlug);
+        if (batchId) otpParams1.set("batch_id", batchId);
+        if (subjectId) otpParams1.set("subject_id", subjectId);
+        const otp1 = await tryFetch(`${PROXY_BASE}/api/pw/otp?${otpParams1.toString()}`);
+        if (otp1?.success && otp1.key) otpKey = otp1.key as string;
+
+        // Attempt 2: kid only (simpler request)
+        if (!otpKey) {
+          const otp2 = await tryFetch(`${PROXY_BASE}/api/pw/otp?kid=${kid}`);
+          if (otp2?.success && otp2.key) otpKey = otp2.key as string;
+        }
+
+        // Attempt 3: retry after a short delay (transient failures)
+        if (!otpKey) {
+          await new Promise((r) => setTimeout(r, 800));
+          const otp3 = await tryFetch(`${PROXY_BASE}/api/pw/otp?${otpParams1.toString()}`, 15000);
+          if (otp3?.success && otp3.key) otpKey = otp3.key as string;
+        }
+
+        if (otpKey) {
           return Response.json({
             success: true,
             type: "drm",
             mpdUrl: videoUrl,
             hlsUrl: proxyHls(hlsUrl),
             rawHlsUrl: hlsUrl,
-            kid: kidData.kid as string,
-            key: otpData.key as string,
+            kid,
+            key: otpKey,
           });
         }
+
+        // Key not available → still pass kid+mpdUrl so player can try Shaka with Widevine EME
+        return Response.json({
+          success: true,
+          type: "drm_no_key",
+          mpdUrl: videoUrl,
+          hlsUrl: proxyHls(hlsUrl),
+          rawHlsUrl: hlsUrl,
+          kid,
+          videoUrl: proxyHls(hlsUrl),
+        });
       }
 
-      // KID/OTP failed → proxy the HLS
+      // KID extraction failed → proxy the HLS
       return Response.json({
         success: true,
         type: "hls",
