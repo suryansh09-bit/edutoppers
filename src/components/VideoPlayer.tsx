@@ -151,11 +151,6 @@ export default function VideoPlayer({
           drm: { clearKeys: { [data.kid]: data.key } },
         });
 
-        player.addEventListener("error", (event: Event) => {
-          const detail = (event as Event & { detail?: { message?: string } })?.detail;
-          setError(detail?.message || "Video playback error");
-        });
-
         player.addEventListener("variantschanged", () => {
           if (!shakaRef.current) return;
           const tracks = shakaRef.current.getVariantTracks();
@@ -167,10 +162,24 @@ export default function VideoPlayer({
         });
 
         setProgress("Loading video stream...");
-        await player.load(data.mpdUrl);
-        video.play().catch(() => {});
-        setLoading(false);
-        setPlaying(true);
+        try {
+          await player.load(data.mpdUrl);
+          video.play().catch(() => {});
+          setLoading(false);
+          setPlaying(true);
+        } catch (shakaErr: unknown) {
+          // DRM not available in this environment — fall back to HLS
+          const code = (shakaErr as { code?: number })?.code;
+          await player.destroy().catch(() => {});
+          shakaRef.current = null;
+          if (data.hlsUrl) {
+            setProgress("Switching to HLS stream...");
+            await loadHls(video, data.hlsUrl);
+          } else {
+            setError(code === 3015 ? "DRM not supported in this browser" : "Video playback error");
+            setLoading(false);
+          }
+        }
       } else if ((data.type === "hls" || data.type === "drm") && (data.hlsUrl || data.videoUrl)) {
         const hlsSource = data.hlsUrl || data.videoUrl || "";
         await loadHls(video, hlsSource);
