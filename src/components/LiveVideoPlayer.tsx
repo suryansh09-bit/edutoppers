@@ -1,7 +1,171 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import Image from "next/image";
+
+// ── Cloudflare Turnstile ────────────────────────────────────────────────────
+const TURNSTILE_SITE_KEY = "0x4AAAAAADHS5DlouHNP_hXs";
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (container: HTMLElement | string, opts: Record<string, unknown>) => string;
+      reset: (widgetId: string) => void;
+      remove: (widgetId: string) => void;
+      getResponse: (widgetId: string) => string | undefined;
+    };
+  }
+}
+
+function TurnstileGate({ onVerified }: { onVerified: () => void }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const widgetIdRef = useRef<string | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "verifying" | "verified" | "error">("loading");
+  const verifiedRef = useRef(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function handleToken(token: string) {
+      if (!isMounted || !token || verifiedRef.current) return;
+      setStatus("verifying");
+      try {
+        const res = await fetch("/api/verify-turnstile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        });
+        const data = await res.json();
+        if (!isMounted) return;
+        if (data.success) {
+          verifiedRef.current = true;
+          setStatus("verified");
+          setTimeout(() => { if (isMounted) onVerified(); }, 800);
+        } else {
+          setStatus("ready");
+          if (widgetIdRef.current && window.turnstile) {
+            try { window.turnstile.reset(widgetIdRef.current); } catch {}
+          }
+        }
+      } catch {
+        if (!isMounted) return;
+        setStatus("ready");
+        if (widgetIdRef.current && window.turnstile) {
+          try { window.turnstile.reset(widgetIdRef.current); } catch {}
+        }
+      }
+    }
+
+    function renderWidget() {
+      if (!containerRef.current || !window.turnstile) return;
+      try {
+        const id = window.turnstile!.render(containerRef.current, {
+          sitekey: TURNSTILE_SITE_KEY,
+          theme: "dark",
+          size: "normal",
+          callback: (token: string) => { handleToken(token); },
+          "error-callback": () => { if (isMounted) setStatus("error"); },
+          "expired-callback": () => {
+            if (isMounted) {
+              setStatus("ready");
+              if (widgetIdRef.current && window.turnstile) {
+                try { window.turnstile.reset(widgetIdRef.current); } catch {}
+              }
+            }
+          },
+        });
+        widgetIdRef.current = id;
+        if (isMounted) setStatus("ready");
+      } catch {
+        if (isMounted) setStatus("error");
+      }
+    }
+
+    if (window.turnstile) {
+      renderWidget();
+    } else {
+      const interval = setInterval(() => {
+        if (window.turnstile) { clearInterval(interval); clearTimeout(timeout); renderWidget(); }
+      }, 200);
+      const timeout = setTimeout(() => {
+        clearInterval(interval);
+        if (isMounted) setStatus("error");
+      }, 8000);
+      return () => { isMounted = false; clearInterval(interval); clearTimeout(timeout); };
+    }
+
+    return () => {
+      isMounted = false;
+      if (widgetIdRef.current && window.turnstile) {
+        try { window.turnstile.remove(widgetIdRef.current); } catch {}
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[320px] gap-5 px-6">
+      <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-red-500/20 to-rose-500/20 border border-red-500/30 flex items-center justify-center mb-1">
+        <svg className="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+      </div>
+      <div className="text-center">
+        <h3 className="text-white font-extrabold text-lg mb-1">Human Verification</h3>
+        <p className="text-white/50 text-sm max-w-xs leading-relaxed">
+          Complete the security check below to unlock live class playback
+        </p>
+      </div>
+      <div
+        ref={containerRef}
+        className={`transition-all duration-300 ${status === "loading" ? "opacity-0 scale-95" : "opacity-100 scale-100"}`}
+      />
+      {status === "loading" && (
+        <div className="flex items-center gap-2 text-white/40 text-sm">
+          <div className="w-4 h-4 border-2 border-white/20 border-t-red-400 rounded-full animate-spin" />
+          Loading verification...
+        </div>
+      )}
+      {status === "verifying" && (
+        <div className="flex items-center gap-2 text-red-300 text-sm font-medium">
+          <div className="w-4 h-4 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
+          Verifying...
+        </div>
+      )}
+      {status === "error" && (
+        <div className="text-center">
+          <p className="text-amber-400 text-sm mb-3">Verification service unavailable. Please try again later.</p>
+          <button
+            onClick={() => {
+              setStatus("loading");
+              if (widgetIdRef.current && window.turnstile) {
+                try { window.turnstile.reset(widgetIdRef.current); setStatus("ready"); } catch {}
+              }
+            }}
+            className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm transition-colors"
+          >
+            Retry Verification
+          </button>
+        </div>
+      )}
+      {status === "verified" && (
+        <div className="flex items-center gap-2.5 text-emerald-400 font-bold text-sm">
+          <div className="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          Verified! Loading video...
+        </div>
+      )}
+      <p className="text-white/25 text-[11px] flex items-center gap-1.5 mt-1">
+        <svg className="w-3.5 h-3.5" viewBox="0 0 109 41" fill="currentColor">
+          <path d="M71.2 21.8c-.4-1.2-1.6-2.2-3-2.2H35.9c-.3 0-.5.2-.6.4-.1.3 0 .5.2.7 0 0 1.7 1.7 2.5 5.1.1.3.3.5.6.5h29.2c.6 0 1.1-.4 1.2-1l2.2-3.5zm.1 10.5c-.4-1.2-1.6-2-3-2H35.9c-.3 0-.5.2-.6.4-.1.3 0 .5.2.7 0 0 1.7 1.7 2.5 5.1.1.3.3.5.6.5h29.2c.6 0 1.1-.4 1.2-1l2.3-3.7z"/>
+        </svg>
+        Protected by Cloudflare Turnstile
+      </p>
+    </div>
+  );
+}
 
 interface LiveVideoPlayerProps {
   /** Live class schedule / video ID */
@@ -47,6 +211,7 @@ export default function LiveVideoPlayer({
   urlType,
   onClose,
 }: LiveVideoPlayerProps) {
+  const [verified, setVerified] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [progress, setProgress] = useState("");
@@ -359,12 +524,13 @@ export default function LiveVideoPlayer({
   }
 
   useEffect(() => {
+    if (!verified) return;
     loadVideo();
     return () => {
       shakaRef.current?.destroy().catch(() => {});
       hlsRef.current?.destroy();
     };
-  }, [loadVideo]);
+  }, [loadVideo, verified]);
 
   // ─── Video Event Listeners ────────────────────────────────────────────────
   useEffect(() => {
@@ -548,8 +714,16 @@ export default function LiveVideoPlayer({
           onMouseEnter={resetControlsTimer}
           onClick={() => { if (!youtubeUrl && !loading && !error) { togglePlay(); resetControlsTimer(); } }}
         >
+          {/* ── Verification gate ── */}
+          {!verified && (
+            <div className="absolute inset-0 z-30 flex items-center justify-center"
+              style={{ background: "linear-gradient(135deg, #0d0f1e 0%, #111827 100%)" }}>
+              <TurnstileGate onVerified={() => setVerified(true)} />
+            </div>
+          )}
+
           {/* Loading */}
-          {loading && (
+          {verified && loading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black/70">
               <div className="relative mb-4">
                 <div className="w-14 h-14 rounded-full border-4 border-white/10 border-t-red-500 animate-spin" />
@@ -561,7 +735,7 @@ export default function LiveVideoPlayer({
           )}
 
           {/* Error */}
-          {error && !loading && (
+          {verified && error && !loading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-[#060810]/95 px-6">
               <div className="w-20 h-20 rounded-3xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-5">
                 <svg className="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -600,7 +774,7 @@ export default function LiveVideoPlayer({
           )}
 
           {/* YouTube embed */}
-          {youtubeUrl && !loading && (
+          {verified && youtubeUrl && !loading && (
             <iframe
               src={youtubeUrl.replace("watch?v=", "embed/").split("&")[0] + "?autoplay=1"}
               className="w-full h-full"
@@ -616,7 +790,7 @@ export default function LiveVideoPlayer({
           )}
 
           {/* Controls */}
-          {!youtubeUrl && !error && (
+          {verified && !youtubeUrl && !error && (
             <div
               className={`absolute inset-0 flex flex-col justify-end transition-opacity duration-300 ${showControls || !playing ? "opacity-100" : "opacity-0"}`}
               onClick={(e) => e.stopPropagation()}

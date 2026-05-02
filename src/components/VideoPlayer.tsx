@@ -28,10 +28,8 @@ interface QualityLevel {
   index: number;
 }
 
-// ── Cloudflare Turnstile (replace with your real site key) ─────────────────
-// Test key that always passes: 1x00000000000000000000AA
-// Invisible test key: 2x00000000000000000000AB
-const TURNSTILE_SITE_KEY = "1x00000000000000000000AA";
+// ── Cloudflare Turnstile ────────────────────────────────────────────────────
+const TURNSTILE_SITE_KEY = "0x4AAAAAADHS5DlouHNP_hXs";
 
 declare global {
   interface Window {
@@ -47,10 +45,43 @@ declare global {
 function TurnstileGate({ onVerified }: { onVerified: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "verified" | "error">("loading");
+  const [status, setStatus] = useState<"loading" | "ready" | "verifying" | "verified" | "error">("loading");
+  const verifiedRef = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
+
+    async function handleToken(token: string) {
+      if (!isMounted || !token || verifiedRef.current) return;
+      setStatus("verifying");
+      try {
+        const res = await fetch("/api/verify-turnstile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        });
+        const data = await res.json();
+        if (!isMounted) return;
+        if (data.success) {
+          verifiedRef.current = true;
+          setStatus("verified");
+          setTimeout(() => { if (isMounted) onVerified(); }, 800);
+        } else {
+          // Reset and let user try again
+          setStatus("ready");
+          if (widgetIdRef.current && window.turnstile) {
+            try { window.turnstile.reset(widgetIdRef.current); } catch {}
+          }
+        }
+      } catch {
+        if (!isMounted) return;
+        // Network error during verification — reset widget
+        setStatus("ready");
+        if (widgetIdRef.current && window.turnstile) {
+          try { window.turnstile.reset(widgetIdRef.current); } catch {}
+        }
+      }
+    }
 
     function renderWidget() {
       if (!containerRef.current || !window.turnstile) return;
@@ -59,16 +90,19 @@ function TurnstileGate({ onVerified }: { onVerified: () => void }) {
           sitekey: TURNSTILE_SITE_KEY,
           theme: "dark",
           size: "normal",
-          callback: (token: string) => {
-            if (!isMounted || !token) return;
-            setStatus("verified");
-            setTimeout(() => { if (isMounted) onVerified(); }, 700);
-          },
+          callback: (token: string) => { handleToken(token); },
           "error-callback": () => { if (isMounted) setStatus("error"); },
-          "expired-callback": () => { if (isMounted) setStatus("ready"); },
+          "expired-callback": () => {
+            if (isMounted) {
+              setStatus("ready");
+              if (widgetIdRef.current && window.turnstile) {
+                try { window.turnstile.reset(widgetIdRef.current); } catch {}
+              }
+            }
+          },
         });
         widgetIdRef.current = id;
-        setStatus("ready");
+        if (isMounted) setStatus("ready");
       } catch {
         if (isMounted) setStatus("error");
       }
@@ -77,11 +111,13 @@ function TurnstileGate({ onVerified }: { onVerified: () => void }) {
     if (window.turnstile) {
       renderWidget();
     } else {
-      // Poll until script loads
       const interval = setInterval(() => {
-        if (window.turnstile) { clearInterval(interval); renderWidget(); }
+        if (window.turnstile) { clearInterval(interval); clearTimeout(timeout); renderWidget(); }
       }, 200);
-      const timeout = setTimeout(() => { clearInterval(interval); if (isMounted) setStatus("error"); }, 5000);
+      const timeout = setTimeout(() => {
+        clearInterval(interval);
+        if (isMounted) setStatus("error");
+      }, 8000);
       return () => { isMounted = false; clearInterval(interval); clearTimeout(timeout); };
     }
 
@@ -91,7 +127,8 @@ function TurnstileGate({ onVerified }: { onVerified: () => void }) {
         try { window.turnstile.remove(widgetIdRef.current); } catch {}
       }
     };
-  }, [onVerified]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[320px] gap-5 px-6">
@@ -122,14 +159,26 @@ function TurnstileGate({ onVerified }: { onVerified: () => void }) {
         </div>
       )}
 
+      {status === "verifying" && (
+        <div className="flex items-center gap-2 text-indigo-300 text-sm font-medium">
+          <div className="w-4 h-4 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin" />
+          Verifying...
+        </div>
+      )}
+
       {status === "error" && (
         <div className="text-center">
-          <p className="text-amber-400 text-sm mb-3">Verification unavailable.</p>
+          <p className="text-amber-400 text-sm mb-3">Verification service unavailable. Please try again later.</p>
           <button
-            onClick={onVerified}
+            onClick={() => {
+              setStatus("loading");
+              if (widgetIdRef.current && window.turnstile) {
+                try { window.turnstile.reset(widgetIdRef.current); setStatus("ready"); } catch {}
+              }
+            }}
             className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition-colors"
           >
-            Continue to Video →
+            Retry Verification
           </button>
         </div>
       )}
@@ -150,7 +199,7 @@ function TurnstileGate({ onVerified }: { onVerified: () => void }) {
         <svg className="w-3.5 h-3.5" viewBox="0 0 109 41" fill="currentColor">
           <path d="M71.2 21.8c-.4-1.2-1.6-2.2-3-2.2H35.9c-.3 0-.5.2-.6.4-.1.3 0 .5.2.7 0 0 1.7 1.7 2.5 5.1.1.3.3.5.6.5h29.2c.6 0 1.1-.4 1.2-1l2.2-3.5zm.1 10.5c-.4-1.2-1.6-2-3-2H35.9c-.3 0-.5.2-.6.4-.1.3 0 .5.2.7 0 0 1.7 1.7 2.5 5.1.1.3.3.5.6.5h29.2c.6 0 1.1-.4 1.2-1l2.3-3.7z"/>
         </svg>
-        Protected by Cloudflare
+        Protected by Cloudflare Turnstile
       </p>
     </div>
   );
