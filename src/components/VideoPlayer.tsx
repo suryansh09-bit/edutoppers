@@ -9,6 +9,8 @@ interface VideoPlayerProps {
   subjectSlug: string;
   title: string;
   onClose: () => void;
+  /** When true, renders as a full page instead of a fixed modal overlay */
+  fullPage?: boolean;
 }
 
 interface VideoData {
@@ -212,6 +214,7 @@ export default function VideoPlayer({
   subjectSlug,
   title,
   onClose,
+  fullPage = false,
 }: VideoPlayerProps) {
   const [verified, setVerified] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -585,12 +588,15 @@ export default function VideoPlayer({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6"
-      style={{ background: "rgba(2, 4, 12, 0.97)", backdropFilter: "blur(10px)" }}
+      className={fullPage
+        ? "min-h-screen w-full flex items-center justify-center p-2 sm:p-4 md:p-6"
+        : "fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6"
+      }
+      style={{ background: "rgba(2, 4, 12, 0.97)", backdropFilter: "blur(10px)", minHeight: fullPage ? "100dvh" : undefined }}
       ref={containerRef}
-      onClick={(e) => { if (e.target === containerRef.current) onClose(); }}
+      onClick={(e) => { if (!fullPage && e.target === containerRef.current) onClose(); }}
     >
-      <div className="relative w-full max-w-4xl animate-scale-up">
+      <div className={`relative w-full ${fullPage ? "max-w-5xl" : "max-w-4xl animate-scale-up"}`}>
 
         {/* ── Top bar ── */}
         <div className="flex items-center gap-2 sm:gap-3 mb-2 px-0.5">

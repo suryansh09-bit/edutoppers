@@ -181,6 +181,8 @@ interface LiveVideoPlayerProps {
   /** urlType from the live class item, e.g. "awsVideo", "penpencilvdo", "youtube" */
   urlType?: string;
   onClose: () => void;
+  /** When true, renders as a full page instead of a fixed modal overlay */
+  fullPage?: boolean;
 }
 
 interface VideoData {
@@ -210,6 +212,7 @@ export default function LiveVideoPlayer({
   directUrl,
   urlType,
   onClose,
+  fullPage = false,
 }: LiveVideoPlayerProps) {
   const [verified, setVerified] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -670,12 +673,15 @@ export default function LiveVideoPlayer({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
-      style={{ background: "rgba(2, 4, 12, 0.97)", backdropFilter: "blur(10px)" }}
+      className={fullPage
+        ? "min-h-screen w-full flex items-center justify-center p-2 sm:p-4"
+        : "fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
+      }
+      style={{ background: "rgba(2, 4, 12, 0.97)", backdropFilter: "blur(10px)", minHeight: fullPage ? "100dvh" : undefined }}
       ref={containerRef}
-      onClick={(e) => { if (e.target === containerRef.current) onClose(); }}
+      onClick={(e) => { if (!fullPage && e.target === containerRef.current) onClose(); }}
     >
-      <div className="relative w-full max-w-5xl animate-scale-up">
+      <div className={`relative w-full max-w-5xl ${fullPage ? "" : "animate-scale-up"}`}>
         {/* Title bar */}
         <div className="flex items-center gap-3 mb-3 px-1">
           <button

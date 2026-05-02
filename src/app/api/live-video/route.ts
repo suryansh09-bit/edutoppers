@@ -234,10 +234,12 @@ async function resolveUrl(
 
   // HLS stream (most common for recorded live classes — signed CloudFront m3u8)
   if (isHls) {
+    const proxied = proxyHls(rawUrl);
     return Response.json({
       success: true,
       type: "hls",
-      videoUrl: proxyHls(rawUrl),
+      hlsUrl: proxied,
+      videoUrl: proxied,
     });
   }
 
@@ -270,20 +272,24 @@ async function resolveUrl(
     }
 
     // DRM key unavailable — use proxied HLS fallback
+    const proxiedFallback = proxyHls(hlsUrl);
     return Response.json({
       success: true,
       type: "hls",
-      videoUrl: proxyHls(hlsUrl),
+      hlsUrl: proxiedFallback,
+      videoUrl: proxiedFallback,
       mpdUrl: rawUrl,
     });
   }
 
   // penpencil or other CDN — try as HLS if it might be a stream
   if (rawUrl.includes("penpencil") || hint === "penpencilvdo" || hint === "penpencil") {
+    const proxiedPencil = proxyHls(rawUrl);
     return Response.json({
       success: true,
       type: "hls",
-      videoUrl: proxyHls(rawUrl),
+      hlsUrl: proxiedPencil,
+      videoUrl: proxiedPencil,
     });
   }
 
