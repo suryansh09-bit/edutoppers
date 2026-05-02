@@ -15,7 +15,7 @@ interface VideoPlayerProps {
 
 interface VideoData {
   success: boolean;
-  type?: "drm" | "hls" | "mp4" | "youtube";
+  type?: "drm" | "drm_no_key" | "hls" | "mp4" | "youtube";
   mpdUrl?: string;
   hlsUrl?: string;
   rawHlsUrl?: string;
@@ -412,14 +412,22 @@ export default function VideoPlayer({
         video.play().catch(() => {});
         setLoading(false);
         setPlaying(true);
+
+        // Detect stalled playback (manifest loaded but segments won't decode, e.g. DRM)
+        setTimeout(() => {
+          if (video.currentTime === 0 && video.readyState < 3 && !video.paused) {
+            setError("drm_unavailable");
+          }
+        }, 12000);
       });
 
       // Backup: some streams report level details only after first level loads
       hls.on(Hls.Events.LEVEL_LOADED, () => { extractHlsQualities(); });
 
       let mediaRecoveryAttempted = false;
+      let mediaRecoveryCount = 0;
       let networkRetries = 0;
-      hls.on(Hls.Events.ERROR, (_event: unknown, errData: { fatal?: boolean; type?: string }) => {
+      hls.on(Hls.Events.ERROR, (_event: unknown, errData: { fatal?: boolean; type?: string; details?: string }) => {
         if (!errData.fatal) return;
         if (errData.type === "networkError") {
           networkRetries++;
@@ -430,6 +438,12 @@ export default function VideoPlayer({
             setLoading(false);
           }
         } else if (errData.type === "mediaError") {
+          mediaRecoveryCount++;
+          if (mediaRecoveryCount > 4) {
+            setError("drm_unavailable");
+            setLoading(false);
+            return;
+          }
           if (!mediaRecoveryAttempted) {
             mediaRecoveryAttempted = true;
             hls.recoverMediaError();
@@ -592,6 +606,68 @@ export default function VideoPlayer({
             await loadHls(video, data.hlsUrl);
           } else {
             setError(code === 3015 ? "browser_unsupported" : "stream_error");
+            setLoading(false);
+          }
+        }
+      } else if (data.type === "drm_no_key" && data.mpdUrl) {
+        // DRM key unavailable — try Shaka with Widevine EME (browser-managed DRM)
+        setProgress("Trying alternative playback...");
+        try {
+          const shaka = await import("shaka-player");
+          shaka.default.polyfill.installAll();
+          if (shaka.default.Player.isBrowserSupported()) {
+            const player = new shaka.default.Player();
+            await player.attach(video);
+            shakaRef.current = player;
+
+            const mpdParts = data.mpdUrl.split("?");
+            if (mpdParts.length > 1) {
+              const queryString = "?" + mpdParts[1];
+              const engine = player.getNetworkingEngine();
+              if (engine) {
+                engine.registerRequestFilter((type: number, request: { uris: string[] }) => {
+                  if ((type === 0 || type === 1) && !request.uris[0].includes("?")) {
+                    request.uris[0] += queryString;
+                  }
+                });
+              }
+            }
+
+            player.configure({
+              drm: {
+                servers: { "com.widevine.alpha": "https://license.pallycon.com/ri/licenseManager.do" },
+              },
+              streaming: { bufferingGoal: 30, rebufferingGoal: 5 },
+            });
+
+            try {
+              await player.load(data.mpdUrl);
+              video.play().catch(() => {});
+              setLoading(false);
+              setPlaying(true);
+            } catch {
+              await player.destroy().catch(() => {});
+              shakaRef.current = null;
+              // Widevine EME failed — try HLS as last resort
+              if (data.hlsUrl) {
+                setProgress("Switching to backup stream...");
+                await loadHls(video, data.hlsUrl);
+              } else {
+                setError("drm_unavailable");
+                setLoading(false);
+              }
+            }
+          } else if (data.hlsUrl) {
+            await loadHls(video, data.hlsUrl);
+          } else {
+            setError("drm_unavailable");
+            setLoading(false);
+          }
+        } catch {
+          if (data.hlsUrl) {
+            await loadHls(video, data.hlsUrl);
+          } else {
+            setError("drm_unavailable");
             setLoading(false);
           }
         }
@@ -805,6 +881,7 @@ export default function VideoPlayer({
     stream_error: { title: "Stream error", desc: "The stream encountered an error. Tap Retry — most videos play on 2nd or 3rd attempt." },
     network_error: { title: "Network error", desc: "Check your connection and tap Retry. Videos usually load after 1–2 retries." },
     browser_unsupported: { title: "Browser not supported", desc: "This video format is not supported in your browser. Try Chrome or Firefox." },
+    drm_unavailable: { title: "DRM key unavailable", desc: "This video's decryption key is temporarily unavailable. Please retry in a few minutes or contact support." },
   };
   const errInfo = errorMessages[error] || { title: "Playback failed", desc: error };
 
