@@ -504,62 +504,98 @@ export default function LiveVideoPlayer({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
+      style={{ background: "rgba(2, 4, 12, 0.97)", backdropFilter: "blur(10px)" }}
       ref={containerRef}
       onClick={(e) => { if (e.target === containerRef.current) onClose(); }}
     >
-      <div className="relative w-full max-w-5xl">
+      <div className="relative w-full max-w-5xl animate-scale-up">
         {/* Title bar */}
-        <div className="flex items-center justify-between mb-2 px-1">
-          <div className="flex items-center gap-2 flex-1 mr-4 min-w-0">
+        <div className="flex items-center gap-3 mb-3 px-1">
+          <button
+            onClick={onClose}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all text-sm font-semibold flex-shrink-0 border border-white/10"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+            </svg>
+            <span className="hidden sm:inline">Back</span>
+          </button>
+          <div className="flex items-center gap-2 flex-1 min-w-0">
             {isLive && (
-              <span className="flex-shrink-0 flex items-center gap-1 px-2 py-0.5 bg-red-600 rounded text-white text-xs font-bold">
+              <span className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 bg-red-600 rounded-lg text-white text-xs font-bold">
                 <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                 LIVE
               </span>
             )}
-            <h2 className="text-white font-semibold text-base line-clamp-1 opacity-90">
-              {title}
-            </h2>
+            <h2 className="text-white font-bold text-sm sm:text-[15px] line-clamp-1 opacity-90">{title}</h2>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white/70 hover:text-white flex items-center justify-center transition-all text-lg leading-none flex-shrink-0"
-            title="Close (Esc)"
+            className="w-9 h-9 rounded-xl bg-white/10 hover:bg-red-500/80 text-white/60 hover:text-white flex items-center justify-center transition-all flex-shrink-0 border border-white/10"
           >
-            &times;
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
         {/* Player wrapper */}
         <div
           ref={wrapperRef}
-          className="relative aspect-video bg-black rounded-xl overflow-hidden"
+          className="relative aspect-video bg-[#060810] rounded-2xl overflow-hidden border border-white/5"
           onMouseMove={resetControlsTimer}
           onMouseEnter={resetControlsTimer}
           onClick={() => { if (!youtubeUrl && !loading && !error) { togglePlay(); resetControlsTimer(); } }}
         >
           {/* Loading */}
           {loading && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black/60">
-              <div className="animate-spin w-12 h-12 border-4 border-red-500 border-t-transparent rounded-full mb-3" />
-              <p className="text-white/70 text-sm">{progress}</p>
+            <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black/70">
+              <div className="relative mb-4">
+                <div className="w-14 h-14 rounded-full border-4 border-white/10 border-t-red-500 animate-spin" />
+                <div className="absolute inset-0 w-14 h-14 rounded-full border-4 border-transparent border-b-red-400 animate-spin"
+                  style={{ animationDirection: "reverse", animationDuration: "1.5s" }} />
+              </div>
+              <p className="text-white/60 text-sm font-medium">{progress}</p>
             </div>
           )}
 
           {/* Error */}
           {error && !loading && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black">
-              <div className="mb-4 opacity-30">
-                <Image src="/pw-logo.jpg" alt="PW" width={80} height={80} className="rounded-full" unoptimized />
+            <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-[#060810]/95 px-6">
+              <div className="w-20 h-20 rounded-3xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-5">
+                <svg className="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
               </div>
-              <p className="text-red-400 text-base mb-4 text-center px-4 max-w-sm">{error}</p>
-              <button
-                onClick={(e) => { e.stopPropagation(); loadVideo(); }}
-                className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
-              >
-                Retry
-              </button>
+              <h3 className="text-white font-extrabold text-base mb-1">Playback Error</h3>
+              <p className="text-white/40 text-xs text-center max-w-xs leading-relaxed mb-5">{error}</p>
+              <div className="w-full max-w-sm bg-amber-500/10 border border-amber-500/25 rounded-2xl p-4 mb-5 text-left">
+                <div className="flex items-start gap-3">
+                  <span className="text-xl flex-shrink-0 mt-0.5">💡</span>
+                  <div>
+                    <p className="text-amber-300 font-bold text-xs mb-1">Tip: Retry 2–3 times</p>
+                    <p className="text-white/45 text-[11px] leading-relaxed">
+                      Most videos load on the 2nd or 3rd retry. If it still fails, try a different class.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={(e) => { e.stopPropagation(); loadVideo(); }}
+                  className="flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white px-6 py-2.5 rounded-xl font-bold text-sm transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Retry
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onClose(); }}
+                  className="bg-white/8 hover:bg-white/15 text-white/50 hover:text-white px-4 py-2.5 rounded-xl font-bold text-sm transition-colors"
+                >Back</button>
+              </div>
             </div>
           )}
 
@@ -739,6 +775,11 @@ export default function LiveVideoPlayer({
             </div>
           )}
         </div>
+
+        {/* Keyboard hint */}
+        <p className="text-center text-white/20 text-xs mt-2.5 hidden sm:block">
+          Space = play/pause &nbsp;·&nbsp; {!isLive && "← → skip 10s · "} F = fullscreen &nbsp;·&nbsp; M = mute &nbsp;·&nbsp; Esc = back
+        </p>
       </div>
     </div>
   );

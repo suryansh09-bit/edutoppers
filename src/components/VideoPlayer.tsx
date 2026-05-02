@@ -81,7 +81,7 @@ function TurnstileGate({ onVerified }: { onVerified: () => void }) {
       const interval = setInterval(() => {
         if (window.turnstile) { clearInterval(interval); renderWidget(); }
       }, 200);
-      const timeout = setTimeout(() => { clearInterval(interval); if (isMounted) setStatus("error"); }, 12000);
+      const timeout = setTimeout(() => { clearInterval(interval); if (isMounted) setStatus("error"); }, 5000);
       return () => { isMounted = false; clearInterval(interval); clearTimeout(timeout); };
     }
 
@@ -124,12 +124,12 @@ function TurnstileGate({ onVerified }: { onVerified: () => void }) {
 
       {status === "error" && (
         <div className="text-center">
-          <p className="text-amber-400 text-sm mb-3">Verification unavailable. Proceeding anyway.</p>
+          <p className="text-amber-400 text-sm mb-3">Verification unavailable.</p>
           <button
             onClick={onVerified}
             className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition-colors"
           >
-            Continue to Video
+            Continue to Video →
           </button>
         </div>
       )}
