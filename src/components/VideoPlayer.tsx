@@ -588,42 +588,38 @@ export default function VideoPlayer({
 
   return (
     <div
-      className={fullPage
-        ? "min-h-screen w-full flex items-center justify-center p-2 sm:p-4 md:p-6"
-        : "fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6"
-      }
-      style={{ background: "rgba(2, 4, 12, 0.97)", backdropFilter: "blur(10px)", minHeight: fullPage ? "100dvh" : undefined }}
+      className="fixed inset-0 z-50 flex flex-col"
+      style={{ background: "rgba(2, 4, 12, 0.97)" }}
       ref={containerRef}
       onClick={(e) => { if (!fullPage && e.target === containerRef.current) onClose(); }}
     >
-      <div className={`relative w-full ${fullPage ? "max-w-5xl" : "max-w-4xl animate-scale-up"}`}>
+      {/* ── Top bar ── */}
+      <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-3 flex-shrink-0">
+        <button
+          onClick={onClose}
+          className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all text-xs sm:text-sm font-semibold flex-shrink-0 border border-white/10"
+        >
+          <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+          </svg>
+          <span className="hidden sm:inline">Back</span>
+        </button>
+        <h2 className="text-white font-bold text-xs sm:text-[15px] line-clamp-1 flex-1 opacity-90">{title}</h2>
+        <button
+          onClick={onClose}
+          className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-white/10 hover:bg-red-500/80 text-white/60 hover:text-white flex items-center justify-center transition-all flex-shrink-0 border border-white/10"
+        >
+          <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
 
-        {/* ── Top bar ── */}
-        <div className="flex items-center gap-2 sm:gap-3 mb-2 px-0.5">
-          <button
-            onClick={onClose}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all text-xs sm:text-sm font-semibold flex-shrink-0 border border-white/10"
-          >
-            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
-            </svg>
-            <span className="hidden sm:inline">Back</span>
-          </button>
-          <h2 className="text-white font-bold text-xs sm:text-[15px] line-clamp-1 flex-1 opacity-90">{title}</h2>
-          <button
-            onClick={onClose}
-            className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-white/10 hover:bg-red-500/80 text-white/60 hover:text-white flex items-center justify-center transition-all flex-shrink-0 border border-white/10"
-          >
-            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {/* ── Player box ── */}
+      {/* ── Player box — takes all remaining vertical space ── */}
+      <div className="flex-1 flex flex-col min-h-0 px-2 sm:px-4 pb-2 sm:pb-3">
         <div
           ref={wrapperRef}
-          className="relative aspect-video bg-[#060810] rounded-xl sm:rounded-2xl overflow-hidden border border-white/5"
+          className="relative w-full h-full bg-[#060810] rounded-xl sm:rounded-2xl overflow-hidden border border-white/5"
           onMouseMove={resetControlsTimer}
           onMouseEnter={resetControlsTimer}
           onTouchStart={resetControlsTimer}
@@ -798,12 +794,12 @@ export default function VideoPlayer({
             </div>
           )}
         </div>
-
-        {/* Keyboard hint */}
-        <p className="text-center text-white/20 text-[11px] mt-2 hidden sm:block">
-          Space = play/pause &nbsp;·&nbsp; ← → skip 10s &nbsp;·&nbsp; F = fullscreen &nbsp;·&nbsp; M = mute &nbsp;·&nbsp; Esc = back
-        </p>
       </div>
+
+      {/* Keyboard hint */}
+      <p className="text-center text-white/20 text-[11px] pb-1 hidden sm:block flex-shrink-0">
+        Space = play/pause &nbsp;·&nbsp; ← → skip 10s &nbsp;·&nbsp; F = fullscreen &nbsp;·&nbsp; M = mute &nbsp;·&nbsp; Esc = back
+      </p>
     </div>
   );
 }

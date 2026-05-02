@@ -673,49 +673,46 @@ export default function LiveVideoPlayer({
 
   return (
     <div
-      className={fullPage
-        ? "min-h-screen w-full flex items-center justify-center p-2 sm:p-4"
-        : "fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
-      }
-      style={{ background: "rgba(2, 4, 12, 0.97)", backdropFilter: "blur(10px)", minHeight: fullPage ? "100dvh" : undefined }}
+      className="fixed inset-0 z-50 flex flex-col"
+      style={{ background: "rgba(2, 4, 12, 0.97)" }}
       ref={containerRef}
       onClick={(e) => { if (!fullPage && e.target === containerRef.current) onClose(); }}
     >
-      <div className={`relative w-full max-w-5xl ${fullPage ? "" : "animate-scale-up"}`}>
-        {/* Title bar */}
-        <div className="flex items-center gap-3 mb-3 px-1">
-          <button
-            onClick={onClose}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all text-sm font-semibold flex-shrink-0 border border-white/10"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
-            </svg>
-            <span className="hidden sm:inline">Back</span>
-          </button>
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            {isLive && (
-              <span className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 bg-red-600 rounded-lg text-white text-xs font-bold">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                LIVE
-              </span>
-            )}
-            <h2 className="text-white font-bold text-sm sm:text-[15px] line-clamp-1 opacity-90">{title}</h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-xl bg-white/10 hover:bg-red-500/80 text-white/60 hover:text-white flex items-center justify-center transition-all flex-shrink-0 border border-white/10"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+      {/* Title bar */}
+      <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-3 flex-shrink-0">
+        <button
+          onClick={onClose}
+          className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all text-xs sm:text-sm font-semibold flex-shrink-0 border border-white/10"
+        >
+          <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+          </svg>
+          <span className="hidden sm:inline">Back</span>
+        </button>
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          {isLive && (
+            <span className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 bg-red-600 rounded-lg text-white text-xs font-bold">
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+              LIVE
+            </span>
+          )}
+          <h2 className="text-white font-bold text-xs sm:text-[15px] line-clamp-1 opacity-90">{title}</h2>
         </div>
+        <button
+          onClick={onClose}
+          className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-white/10 hover:bg-red-500/80 text-white/60 hover:text-white flex items-center justify-center transition-all flex-shrink-0 border border-white/10"
+        >
+          <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
 
-        {/* Player wrapper */}
+      {/* Player wrapper — takes all remaining vertical space */}
+      <div className="flex-1 flex flex-col min-h-0 px-2 sm:px-4 pb-2 sm:pb-3">
         <div
           ref={wrapperRef}
-          className="relative aspect-video bg-[#060810] rounded-2xl overflow-hidden border border-white/5"
+          className="relative w-full h-full bg-[#060810] rounded-xl sm:rounded-2xl overflow-hidden border border-white/5"
           onMouseMove={resetControlsTimer}
           onMouseEnter={resetControlsTimer}
           onClick={() => { if (!youtubeUrl && !loading && !error) { togglePlay(); resetControlsTimer(); } }}
@@ -955,12 +952,12 @@ export default function LiveVideoPlayer({
             </div>
           )}
         </div>
-
-        {/* Keyboard hint */}
-        <p className="text-center text-white/20 text-xs mt-2.5 hidden sm:block">
-          Space = play/pause &nbsp;·&nbsp; {!isLive && "← → skip 10s · "} F = fullscreen &nbsp;·&nbsp; M = mute &nbsp;·&nbsp; Esc = back
-        </p>
       </div>
+
+      {/* Keyboard hint */}
+      <p className="text-center text-white/20 text-xs pb-1 hidden sm:block flex-shrink-0">
+        Space = play/pause &nbsp;·&nbsp; {!isLive && "← → skip 10s · "} F = fullscreen &nbsp;·&nbsp; M = mute &nbsp;·&nbsp; Esc = back
+      </p>
     </div>
   );
 }
