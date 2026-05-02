@@ -6,11 +6,11 @@ import SiteGuard from "@/components/SiteGuard";
 
 export const metadata: Metadata = {
   title: {
-    default: "EduToppers — Free Physics Wallah Batches & Live Classes",
+    default: "Free Physics Wallah Batches at One Place — EduToppers",
     template: "%s | EduToppers",
   },
   description:
-    "Physics Wallah (PW) is an Indian edtech platform that provides accessible & comprehensive learning experiences to students from Class 6th to postgraduate level. EduToppers provides free PW batches with live classes and high quality lectures for every student.",
+    "Free Physics Wallah Batches at One Place — EduToppers. Physics Wallah (PW) is an Indian edtech platform that provides accessible & comprehensive learning experiences to students from Class 6th to postgraduate level. Access free PW batches with live classes and high quality lectures for every student.",
   keywords: [
     "Physics Wallah free batches",
     "PW free courses",
@@ -40,14 +40,14 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "EduToppers",
-    title: "EduToppers — Free Physics Wallah Batches & Live Classes",
+    title: "Free Physics Wallah Batches at One Place — EduToppers",
     description:
       "Physics Wallah (PW) is an Indian edtech platform providing comprehensive learning from Class 6th to postgraduate level. Get free PW batches with live classes and high quality lectures.",
     images: [{ url: "/edutoppers-logo.png", width: 512, height: 512, alt: "EduToppers Logo" }],
   },
   twitter: {
     card: "summary",
-    title: "EduToppers — Free Physics Wallah Batches & Live Classes",
+    title: "Free Physics Wallah Batches at One Place — EduToppers",
     description:
       "Physics Wallah (PW) is an Indian edtech platform. EduToppers provides free PW batches with live classes and high quality lectures for every student.",
     images: ["/edutoppers-logo.png"],
