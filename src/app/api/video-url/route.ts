@@ -274,6 +274,7 @@ export async function GET(request: NextRequest) {
             type: "drm",
             mpdUrl: videoUrl,
             hlsUrl: proxyHls(hlsUrl),
+            rawHlsUrl: hlsUrl,
             kid: kidData.kid as string,
             key: otpData.key as string,
           });
@@ -285,6 +286,8 @@ export async function GET(request: NextRequest) {
         success: true,
         type: "hls",
         videoUrl: proxyHls(hlsUrl),
+        hlsUrl: proxyHls(hlsUrl),
+        rawHlsUrl: hlsUrl,
         mpdUrl: videoUrl,
       });
     }
@@ -295,6 +298,8 @@ export async function GET(request: NextRequest) {
       return Response.json({
         success: true,
         type: "hls",
+        hlsUrl: proxyHls(videoUrl),
+        rawHlsUrl: videoUrl,
         videoUrl: proxyHls(videoUrl),
       });
     }

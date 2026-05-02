@@ -322,6 +322,7 @@ function LiveClasses({ batchId }: { batchId: string }) {
           const isPlayable =
             statusLabel === "Completed" || statusLabel === "LIVE" ||
             cls.tag === "Ended" || cls.tag === "ENDED" || cls.status === "ENDED" || cls.status === "Ended" ||
+            cls.tag === "ended" || cls.status === "ended" || cls.status === "COMPLETED" || cls.status === "completed" ||
             !!cls.videoDetails || !!cls.url || !!cls.ytStreamUrl;
           const thumbnail = cls.videoDetails?.image || null;
 

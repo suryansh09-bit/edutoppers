@@ -239,6 +239,7 @@ async function resolveUrl(
       success: true,
       type: "hls",
       hlsUrl: proxied,
+      rawHlsUrl: rawUrl,
       videoUrl: proxied,
     });
   }
@@ -265,6 +266,7 @@ async function resolveUrl(
           type: "drm",
           mpdUrl: rawUrl,
           hlsUrl: proxyHls(hlsUrl),
+          rawHlsUrl: hlsUrl,
           kid: kidData.kid as string,
           key: otpData.key as string,
         });
@@ -277,6 +279,7 @@ async function resolveUrl(
       success: true,
       type: "hls",
       hlsUrl: proxiedFallback,
+      rawHlsUrl: hlsUrl,
       videoUrl: proxiedFallback,
       mpdUrl: rawUrl,
     });
@@ -289,6 +292,7 @@ async function resolveUrl(
       success: true,
       type: "hls",
       hlsUrl: proxiedPencil,
+      rawHlsUrl: rawUrl,
       videoUrl: proxiedPencil,
     });
   }

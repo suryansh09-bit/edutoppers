@@ -228,6 +228,7 @@ interface VideoData {
   type?: "drm" | "hls" | "mp4" | "youtube" | "live";
   mpdUrl?: string;
   hlsUrl?: string;
+  rawHlsUrl?: string;
   videoUrl?: string;
   kid?: string;
   key?: string;
@@ -323,12 +324,16 @@ export default function LiveVideoPlayer({
         startLevel: -1,
         maxBufferLength: isLive ? 30 : 60,
         maxMaxBufferLength: isLive ? 60 : 120,
-        manifestLoadingMaxRetry: 4,
-        manifestLoadingRetryDelay: 1000,
-        levelLoadingMaxRetry: 4,
+        manifestLoadingMaxRetry: 5,
+        manifestLoadingRetryDelay: 1500,
+        levelLoadingMaxRetry: 5,
         levelLoadingRetryDelay: 1000,
-        fragLoadingMaxRetry: 6,
+        fragLoadingMaxRetry: 8,
         fragLoadingRetryDelay: 1000,
+        xhrSetup: (xhr: XMLHttpRequest) => {
+          xhr.setRequestHeader("Referer", "https://www.pw.live/");
+          xhr.setRequestHeader("Origin", "https://www.pw.live");
+        },
       });
       hlsRef.current = hls;
       hls.loadSource(src);
@@ -452,9 +457,9 @@ export default function LiveVideoPlayer({
       const video = videoRef.current;
       if (!video) return;
 
-      // iOS: skip DRM, use HLS directly
+      // iOS: skip DRM, use raw (unproxied) HLS directly — iOS Safari handles auth natively
       if (device === "ios") {
-        const hlsSrc = data.hlsUrl || data.videoUrl || (data.mpdUrl ? data.mpdUrl.replace(/\.mpd(\?|$)/, ".m3u8$1") : "");
+        const hlsSrc = data.rawHlsUrl || data.videoUrl || (data.mpdUrl ? data.mpdUrl.replace(/\.mpd(\?|$)/, ".m3u8$1") : "");
         if (hlsSrc) {
           loadIosNativeHls(video, hlsSrc);
         } else {

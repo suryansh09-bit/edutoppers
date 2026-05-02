@@ -18,6 +18,7 @@ interface VideoData {
   type?: "drm" | "hls" | "mp4" | "youtube";
   mpdUrl?: string;
   hlsUrl?: string;
+  rawHlsUrl?: string;
   videoUrl?: string;
   kid?: string;
   key?: string;
@@ -399,9 +400,9 @@ export default function VideoPlayer({
       const video = videoRef.current;
       if (!video) return;
 
-      // iOS: skip DRM (Shaka) entirely, use HLS fallback
+      // iOS: skip DRM (Shaka) entirely, use raw (unproxied) HLS — iOS Safari handles auth natively
       if (device === "ios") {
-        const hlsSrc = data.hlsUrl || data.videoUrl || data.mpdUrl || "";
+        const hlsSrc = data.rawHlsUrl || data.videoUrl || (data.mpdUrl ? data.mpdUrl.replace(/\.mpd(\?|$)/, ".m3u8$1") : "");
         if (hlsSrc) {
           loadIosNativeHls(video, hlsSrc);
         } else {
