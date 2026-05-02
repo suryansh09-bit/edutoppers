@@ -146,7 +146,7 @@ Any platform supporting Node.js 18+ works:
 **Telegram Channel:** [https://t.me/+4BMk346dLn1hZDU9](https://t.me/+4BMk346dLn1hZDU9)
 
 If a video fails to load, **retry 2–3 times** — it usually plays on the second or third attempt.
-For persistent issues, contact **[@urs_boy09](https://t.me/urs_boy09)** on Telegram.
+For persistent issues, contact our **[Support Bot](https://t.me/pdabluquery_bot)** on Telegram.
 
 ---
 
