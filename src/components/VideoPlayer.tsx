@@ -251,16 +251,18 @@ export default function VideoPlayer({
       if (line.startsWith("#EXT-X-STREAM-INF")) {
         const resMatch = line.match(/RESOLUTION=(\d+)x(\d+)/);
         const bwMatch = line.match(/BANDWIDTH=(\d+)/);
-        if (resMatch) {
-          const h = parseInt(resMatch[2], 10);
-          const bw = bwMatch ? parseInt(bwMatch[1], 10) : 0;
-          if (!levels.some(l => l.height === h)) {
+        const h = resMatch ? parseInt(resMatch[2], 10) : 0;
+        const bw = bwMatch ? parseInt(bwMatch[1], 10) : 0;
+        if (h > 0 || bw > 0) {
+          const key = h > 0 ? h : bw;
+          if (!levels.some(l => (l.height > 0 ? l.height : l.bitrate) === key)) {
             levels.push({ height: h, bitrate: bw, index: levels.length });
           }
         }
       }
     }
-    return levels.sort((a, b) => b.height - a.height);
+    const hasHeights = levels.some(l => l.height > 0);
+    return levels.sort((a, b) => hasHeights ? b.height - a.height : b.bitrate - a.bitrate);
   }
 
   // ─── iOS Native HLS ───────────────────────────────────────────────────────
@@ -339,17 +341,27 @@ export default function VideoPlayer({
       hls.loadSource(src);
       hls.attachMedia(video);
 
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      const extractHlsQualities = () => {
+        if (!hls.levels || hls.levels.length < 2) return;
+        const allLvls = hls.levels.map((l, i) => ({ height: l.height || 0, bitrate: l.bitrate || 0, index: i }));
+        const hasHeights = allLvls.some(l => l.height > 0);
         const seen = new Set<number>();
-        const lvls: QualityLevel[] = hls.levels
-          .map((l, i) => ({ height: l.height || 0, bitrate: l.bitrate || 0, index: i }))
-          .filter(l => { if (seen.has(l.height)) return false; seen.add(l.height); return true; })
-          .sort((a, b) => b.height - a.height);
-        setQualities(lvls);
+        const lvls = allLvls
+          .filter(l => hasHeights ? l.height > 0 : l.bitrate > 0)
+          .filter(l => { const key = hasHeights ? l.height : l.bitrate; if (seen.has(key)) return false; seen.add(key); return true; })
+          .sort((a, b) => hasHeights ? b.height - a.height : b.bitrate - a.bitrate);
+        if (lvls.length > 0) setQualities(lvls);
+      };
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        extractHlsQualities();
         video.play().catch(() => {});
         setLoading(false);
         setPlaying(true);
       });
+
+      // Backup: some streams report level details only after first level loads
+      hls.on(Hls.Events.LEVEL_LOADED, () => { extractHlsQualities(); });
 
       let mediaRecoveryAttempted = false;
       hls.on(Hls.Events.ERROR, (_event: unknown, errData: { fatal?: boolean; type?: string }) => {
@@ -481,19 +493,24 @@ export default function VideoPlayer({
 
         player.configure({ drm: { clearKeys: { [data.kid]: data.key } } });
 
-        player.addEventListener("variantschanged", () => {
+        const extractShakaQualities = () => {
           if (!shakaRef.current) return;
           const tracks = shakaRef.current.getVariantTracks();
+          const seen = new Set<number>();
           const qs: QualityLevel[] = tracks
-            .filter((t: { height: number }) => t.height)
-            .map((t: { height: number; bandwidth: number }, i: number) => ({ height: t.height ?? 0, bitrate: t.bandwidth, index: i }))
+            .filter((t: { height: number }) => t.height > 0)
+            .map((t: { height: number; bandwidth: number }, i: number) => ({ height: t.height, bitrate: t.bandwidth, index: i }))
+            .filter((q: QualityLevel) => { if (seen.has(q.height)) return false; seen.add(q.height); return true; })
             .sort((a: QualityLevel, b: QualityLevel) => b.height - a.height);
-          setQualities(qs);
-        });
+          if (qs.length > 0) setQualities(qs);
+        };
+        player.addEventListener("trackschanged", extractShakaQualities);
+        player.addEventListener("variantchanged", extractShakaQualities);
 
         setProgress("Loading stream...");
         try {
           await player.load(data.mpdUrl);
+          extractShakaQualities();
           video.play().catch(() => {});
           setLoading(false);
           setPlaying(true);
@@ -708,6 +725,12 @@ export default function VideoPlayer({
     return `${m}:${String(sec).padStart(2, "0")}`;
   }
 
+  function qualityLabel(q: QualityLevel): string {
+    if (q.height > 0) return `${q.height}p`;
+    if (q.bitrate > 0) return `${Math.round(q.bitrate / 1000)}k`;
+    return `Q${q.index + 1}`;
+  }
+
   const errorMessages: Record<string, { title: string; desc: string }> = {
     not_found: { title: "Video not available", desc: "This video URL could not be resolved. Try retrying 2–3 times — it usually works!" },
     stream_error: { title: "Stream error", desc: "The stream encountered an error. Tap Retry — most videos play on 2nd or 3rd attempt." },
@@ -903,14 +926,14 @@ export default function VideoPlayer({
                     <div className="relative flex-shrink-0">
                       <button onClick={(e) => { e.stopPropagation(); setShowQualityMenu(!showQualityMenu); setShowSpeedMenu(false); }}
                         className="text-white/70 hover:text-white text-[10px] sm:text-xs font-bold px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">
-                        {currentQuality === -1 ? "Auto" : `${qualities.find(q => q.index === currentQuality)?.height || ""}p`}</button>
+                        {currentQuality === -1 ? "Auto" : qualityLabel(qualities.find(q => q.index === currentQuality) || qualities[0])}</button>
                       {showQualityMenu && (
                         <div className="absolute bottom-full right-0 mb-2 bg-gray-900/95 backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden min-w-[72px] shadow-2xl z-30">
                           <button onClick={(e) => { e.stopPropagation(); setQuality(-1); }}
                             className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm transition-colors ${currentQuality === -1 ? "text-indigo-400 bg-indigo-500/10 font-bold" : "text-white/80 hover:bg-white/10 hover:text-white"}`}>Auto</button>
                           {qualities.map(q => (
                             <button key={q.index} onClick={(e) => { e.stopPropagation(); setQuality(q.index); }}
-                              className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm transition-colors ${currentQuality === q.index ? "text-indigo-400 bg-indigo-500/10 font-bold" : "text-white/80 hover:bg-white/10 hover:text-white"}`}>{q.height}p</button>
+                              className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm transition-colors ${currentQuality === q.index ? "text-indigo-400 bg-indigo-500/10 font-bold" : "text-white/80 hover:bg-white/10 hover:text-white"}`}>{qualityLabel(q)}</button>
                           ))}
                         </div>
                       )}
