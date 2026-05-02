@@ -351,11 +351,27 @@ export default function LiveVideoPlayer({
         ...(directUrl ? { direct_url: directUrl } : {}),
         ...(urlType ? { url_type: urlType } : {}),
       });
-      const res = await fetch(`/api/live-video?${params.toString()}`);
-      const data: VideoData = await res.json();
 
-      if (!data.success) {
-        setError(data.error || "stream_unavailable");
+      // Auto-retry API call up to 3 times before showing error
+      let data: VideoData | null = null;
+      let lastErr = "stream_unavailable";
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) {
+          setProgress(`Retrying... (attempt ${attempt + 1}/3)`);
+          await new Promise(r => setTimeout(r, 1200 * attempt));
+        }
+        try {
+          const res = await fetch(`/api/live-video?${params.toString()}`);
+          const d: VideoData = await res.json();
+          if (d.success) { data = d; break; }
+          lastErr = d.error || "stream_unavailable";
+        } catch {
+          lastErr = "network_error";
+        }
+      }
+
+      if (!data || !data.success) {
+        setError(lastErr);
         setLoading(false);
         return;
       }
@@ -369,9 +385,9 @@ export default function LiveVideoPlayer({
       const video = videoRef.current;
       if (!video) return;
 
-      // iOS: use raw HLS URL — Safari handles signed streams natively
+      // iOS: use proxied HLS URL so sub-playlists retain auth tokens; fall back to raw
       if (isIos) {
-        const hlsSrc = data.rawHlsUrl || data.videoUrl || "";
+        const hlsSrc = data.hlsUrl || data.rawHlsUrl || data.videoUrl || "";
         if (hlsSrc) {
           loadIosNativeHls(video, hlsSrc);
         } else {
@@ -747,7 +763,8 @@ export default function LiveVideoPlayer({
               playsInline
               webkit-playsinline="true"
               x-webkit-airplay="allow"
-              controlsList="nodownload"
+              preload="auto"
+              controlsList="nodownload nofullscreen noremoteplayback"
             />
           )}
 

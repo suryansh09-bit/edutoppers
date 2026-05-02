@@ -12,6 +12,19 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "i.ytimg.com" },
     ],
   },
+  async headers() {
+    return [
+      {
+        source: "/api/:path*",
+        headers: [
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Access-Control-Allow-Methods", value: "GET, POST, OPTIONS" },
+          { key: "Access-Control-Allow-Headers", value: "Content-Type, Range, Accept" },
+          { key: "Access-Control-Expose-Headers", value: "Content-Length, Content-Range, Accept-Ranges" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -41,12 +41,15 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const fetchHeaders: Record<string, string> = { ...PW_HEADERS };
+    const rangeHeader = request.headers.get("range");
+    if (rangeHeader) fetchHeaders["Range"] = rangeHeader;
     const res = await fetch(targetUrl, {
-      headers: PW_HEADERS,
+      headers: fetchHeaders,
       cache: "no-store",
     });
 
-    if (!res.ok) {
+    if (!res.ok && res.status !== 206) {
       // Return a meaningful error body
       const errText = await res.text().catch(() => "");
       return new NextResponse(
@@ -66,14 +69,21 @@ export async function GET(request: NextRequest) {
     // If it's not an HLS playlist, stream it straight through (TS segments, key files, etc.)
     if (!isPlaylist) {
       const body = await res.arrayBuffer();
+      const headers: Record<string, string> = {
+        "Content-Type": contentType || "application/octet-stream",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges",
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "no-store",
+      };
+      const cl = res.headers.get("content-length");
+      if (cl) headers["Content-Length"] = cl;
+      const cr = res.headers.get("content-range");
+      if (cr) headers["Content-Range"] = cr;
       return new NextResponse(body, {
-        status: 200,
-        headers: {
-          "Content-Type": contentType || "application/octet-stream",
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "GET, OPTIONS",
-          "Cache-Control": "no-store",
-        },
+        status: res.status === 206 ? 206 : 200,
+        headers,
       });
     }
 
@@ -113,7 +123,9 @@ export async function OPTIONS() {
     headers: {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Range",
+      "Access-Control-Allow-Headers": "Content-Type, Range, Accept",
+      "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges",
+      "Access-Control-Max-Age": "86400",
     },
   });
 }
