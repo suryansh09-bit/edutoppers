@@ -630,11 +630,12 @@ export default function LiveVideoPlayer({
   }
 
   const errorMessages: Record<string, { title: string; desc: string }> = {
-    not_found: { title: "Stream not available", desc: "This class recording could not be found. Try retrying a few times." },
+    not_found: { title: "Stream not available", desc: "This class recording could not be found. The recording may not have been enabled for this class." },
     stream_error: { title: "Stream error", desc: "The stream encountered an error. Tap Retry — most classes play on 2nd or 3rd attempt." },
-    stream_unavailable: { title: "Recording not ready", desc: "This recording may not be available yet. Please try again later." },
+    stream_unavailable: { title: "Recording not ready", desc: "This recording is not available yet. It may take some time after the class ends for the recording to be processed." },
     network_error: { title: "Network error", desc: "Check your connection and tap Retry." },
     browser_unsupported: { title: "Browser not supported", desc: "Try Chrome or Firefox for best compatibility." },
+    "Recording not available yet. Please try again later.": { title: "Recording not available", desc: "This class recording is not available. The class may not have a recorded video or the recording is still being processed." },
   };
   const errInfo = errorMessages[error] || { title: "Playback failed", desc: error };
 

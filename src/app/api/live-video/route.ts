@@ -2,10 +2,21 @@ import { NextRequest } from "next/server";
 import { decryptJson } from "@/lib/decrypt";
 
 const PROXY_BASE = "https://apiserverpro.vercel.app";
+const PW_API = "https://api.penpencil.co";
 
-async function tryFetch(url: string): Promise<Record<string, unknown> | null> {
+const PW_HEADERS: Record<string, string> = {
+  "Content-Type": "application/json",
+  "randomId": "edutoppers-live",
+  "Client-Type": "WEB",
+  "Client-Version": "1.0",
+};
+
+async function tryFetch(url: string, timeoutMs = 10000): Promise<Record<string, unknown> | null> {
   try {
-    const res = await fetch(url, { cache: "no-store" });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch(url, { cache: "no-store", signal: controller.signal });
+    clearTimeout(timer);
     if (!res.ok) return null;
     const text = await res.text();
     try {
@@ -18,9 +29,12 @@ async function tryFetch(url: string): Promise<Record<string, unknown> | null> {
   }
 }
 
-async function tryDecryptedFetch(url: string): Promise<Record<string, unknown> | null> {
+async function tryDecryptedFetch(url: string, timeoutMs = 10000): Promise<Record<string, unknown> | null> {
   try {
-    const res = await fetch(url, { cache: "no-store" });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch(url, { cache: "no-store", signal: controller.signal });
+    clearTimeout(timer);
     if (!res.ok) return null;
     const json = await res.json();
     if (json.data && typeof json.data === "string" && json.data.includes(":")) {
@@ -30,6 +44,42 @@ async function tryDecryptedFetch(url: string): Promise<Record<string, unknown> |
   } catch {
     return null;
   }
+}
+
+/** Direct PW API fetch (bypasses proxy, used as fallback) */
+async function tryPwApiFetch(path: string, timeoutMs = 10000): Promise<Record<string, unknown> | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch(`${PW_API}${path}`, {
+      headers: PW_HEADERS,
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+/** Extract URL from various PW API response shapes */
+function extractUrl(data: Record<string, unknown>): { url: string | null; type: string | null } {
+  if (typeof data.url === "string" && data.url) {
+    return { url: data.url, type: typeof data.type === "string" ? data.type : null };
+  }
+  const d = data.data as Record<string, unknown> | undefined;
+  if (d && typeof d === "object" && !Array.isArray(d)) {
+    if (typeof d.url === "string" && d.url) return { url: d.url, type: typeof d.type === "string" ? d.type : null };
+    if (typeof d.video_url === "string" && d.video_url) return { url: d.video_url, type: null };
+    if (typeof d.signedUrl === "string" && d.signedUrl) return { url: d.signedUrl, type: null };
+  }
+  if (Array.isArray(data.data)) {
+    const items = data.data as { url?: string; type?: string }[];
+    if (items[0]?.url) return { url: items[0].url, type: items[0].type || null };
+  }
+  return { url: null, type: null };
 }
 
 /** Wrap an HLS URL in our server-side proxy to forward auth tokens on every request */
@@ -87,51 +137,32 @@ export async function GET(request: NextRequest) {
     let signedUrl: string | null = null;
     let videoType: string | null = null;
 
-    // ── Step 1: get-url with schedule _id + subjectId (PRIMARY — always works for live recordings) ──
-    // This is the proven approach: childId = schedule._id returns signed HLS m3u8 URL
+    function assign(data: Record<string, unknown> | null): boolean {
+      if (!data?.success) return false;
+      const { url, type } = extractUrl(data);
+      if (url) { signedUrl = url; videoType = type; return true; }
+      return false;
+    }
+
+    // ── Step 1: get-url with schedule _id + subjectId (PRIMARY) ──
     if (subjectId) {
-      const data = await tryFetch(
+      assign(await tryFetch(
         `${PROXY_BASE}/api/pw/get-url?childId=${videoId}&batchId=${batchId}&subjectId=${subjectId}`
-      );
-      if (data?.success && Array.isArray(data.data)) {
-        const items = data.data as { url?: string; type?: string }[];
-        if (items[0]?.url) {
-          signedUrl = items[0].url;
-          videoType = items[0].type || null;
-        }
-      } else if (data?.success && typeof (data as { url?: string }).url === "string") {
-        signedUrl = (data as { url: string }).url;
-      }
+      ));
     }
 
-    // ── Step 2: get-url with schedule _id + batchId only (no subjectId) ──
+    // ── Step 2: get-url with schedule _id + batchId only ──
     if (!signedUrl) {
-      const data = await tryFetch(
-        `${PROXY_BASE}/api/pw/get-url?childId=${videoId}&batchId=${batchId}`
-      );
-      if (data?.success && Array.isArray(data.data)) {
-        const items = data.data as { url?: string; type?: string }[];
-        if (items[0]?.url) {
-          signedUrl = items[0].url;
-          videoType = items[0].type || null;
-        }
-      } else if (data?.success && typeof (data as { url?: string }).url === "string") {
-        signedUrl = (data as { url: string }).url;
-      }
+      assign(await tryFetch(
+        `${PROXY_BASE}/api/pw/get-url?childId=${videoId}&batchId=${batchId}&subjectId=${subjectId || "default"}`
+      ));
     }
 
-    // ── Step 3: get-urls endpoint (alternative) ──
+    // ── Step 3: get-urls endpoint ──
     if (!signedUrl && subjectId) {
-      const data = await tryFetch(
+      assign(await tryFetch(
         `${PROXY_BASE}/api/pw/get-urls?batchId=${batchId}&subjectId=${subjectId}&childId=${videoId}`
-      );
-      if (data?.success && Array.isArray(data.data)) {
-        const items = data.data as { url?: string; type?: string }[];
-        if (items[0]?.url) {
-          signedUrl = items[0].url;
-          videoType = items[0].type || null;
-        }
-      }
+      ));
     }
 
     // ── Step 4: videoplay endpoint ──
@@ -139,19 +170,7 @@ export async function GET(request: NextRequest) {
       const data = await tryFetch(
         `${PROXY_BASE}/api/pw/videoplay?batchId=${batchId}&subjectId=${subjectId}&childId=${videoId}`
       );
-      if (data?.success) {
-        const d = data.data as { video_url?: string; url?: string; type?: string } | undefined;
-        const items = data.data as { url?: string; type?: string }[] | undefined;
-        if (d?.video_url) {
-          signedUrl = d.video_url;
-        } else if (d?.url) {
-          signedUrl = d.url;
-          videoType = (d as { type?: string }).type || null;
-        } else if (Array.isArray(items) && items[0]?.url) {
-          signedUrl = items[0].url;
-          videoType = items[0].type || null;
-        }
-      }
+      assign(data);
     }
 
     // ── Step 5: video endpoint (encrypted) ──
@@ -173,14 +192,40 @@ export async function GET(request: NextRequest) {
 
     // ── Step 6: get-url with subjectSlug format ──
     if (!signedUrl && subjectSlug) {
-      const data = await tryFetch(
+      assign(await tryFetch(
         `${PROXY_BASE}/api/pw/get-url?video_id=${videoId}&batch_id=${batchId}&subject_slug=${encodeURIComponent(subjectSlug)}`
+      ));
+    }
+
+    // ── Step 7: get-url with id param ──
+    if (!signedUrl) {
+      assign(await tryFetch(
+        `${PROXY_BASE}/api/pw/get-url?id=${videoId}&batchId=${batchId}`
+      ));
+    }
+
+    // ── Step 8: Direct PW API fallback (bypasses proxy) ──
+    if (!signedUrl && subjectId) {
+      const data = await tryPwApiFetch(
+        `/v1/videos/get-url?childId=${videoId}&batchId=${batchId}&subjectId=${subjectId}`
       );
-      if (data?.success) {
-        const url =
-          (data as { url?: string }).url ||
-          ((data as { data?: { url?: string }[] }).data as { url?: string }[] | undefined)?.[0]?.url;
-        if (url) signedUrl = url;
+      assign(data);
+    }
+    if (!signedUrl) {
+      const data = await tryPwApiFetch(
+        `/v3/files/get-url?childId=${videoId}&batchId=${batchId}${subjectId ? `&subjectId=${subjectId}` : ""}`
+      );
+      assign(data);
+    }
+
+    // ── Step 9: Retry primary endpoint with delay (transient failures) ──
+    if (!signedUrl) {
+      await new Promise((r) => setTimeout(r, 800));
+      if (subjectId) {
+        assign(await tryFetch(
+          `${PROXY_BASE}/api/pw/get-url?childId=${videoId}&batchId=${batchId}&subjectId=${subjectId}`,
+          15000
+        ));
       }
     }
 
@@ -249,7 +294,7 @@ async function resolveUrl(
     const hlsUrl = rawUrl.replace(/\.mpd(\?|$)/, ".m3u8$1");
 
     // Try to get DRM keys
-    const kidData = await tryFetchLocal(
+    const kidData = await tryFetch(
       `${PROXY_BASE}/api/pw/kid?mpdUrl=${encodeURIComponent(rawUrl)}`
     );
     if (kidData?.success && kidData.kid) {
@@ -257,7 +302,7 @@ async function resolveUrl(
       if (subjectSlug) otpParams.set("subject_slug", subjectSlug);
       if (batchId) otpParams.set("batch_id", batchId);
       if (subjectId) otpParams.set("subject_id", subjectId);
-      const otpData = await tryFetchLocal(
+      const otpData = await tryFetch(
         `${PROXY_BASE}/api/pw/otp?${otpParams.toString()}`
       );
       if (otpData?.success && otpData.key) {
@@ -303,14 +348,4 @@ async function resolveUrl(
     type: "mp4",
     videoUrl: rawUrl,
   });
-}
-
-async function tryFetchLocal(url: string): Promise<Record<string, unknown> | null> {
-  try {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null;
-  }
 }
