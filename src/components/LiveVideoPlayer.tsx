@@ -16,6 +16,49 @@ declare global {
   }
 }
 
+type DeviceType = "ios" | "android" | null;
+
+// ── Device Selector ─────────────────────────────────────────────────────────
+function DeviceSelector({ onSelect }: { onSelect: (device: DeviceType) => void }) {
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center px-6 z-40"
+      style={{ background: "linear-gradient(135deg, #0d0f1e 0%, #111827 100%)" }}>
+      <div className="w-12 h-12 rounded-2xl bg-red-500/15 border border-red-500/25 flex items-center justify-center mb-4">
+        <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+        </svg>
+      </div>
+      <h3 className="text-white font-extrabold text-base mb-1">Select Your Device</h3>
+      <p className="text-white/40 text-xs text-center mb-6 max-w-[220px]">Choose your device type for the best playback experience</p>
+      <div className="flex gap-3 w-full max-w-xs">
+        {/* iOS */}
+        <button
+          onClick={() => onSelect("ios")}
+          className="flex-1 flex flex-col items-center gap-2 py-4 px-3 rounded-2xl bg-white/5 hover:bg-red-500/20 border border-white/10 hover:border-red-500/40 transition-all group"
+        >
+          <svg className="w-8 h-8 text-white/70 group-hover:text-red-300 transition-colors" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+          </svg>
+          <span className="text-white/80 group-hover:text-white font-bold text-sm transition-colors">iPhone / iPad</span>
+          <span className="text-white/30 text-[10px]">iOS / iPadOS</span>
+        </button>
+        {/* Android */}
+        <button
+          onClick={() => onSelect("android")}
+          className="flex-1 flex flex-col items-center gap-2 py-4 px-3 rounded-2xl bg-white/5 hover:bg-emerald-500/20 border border-white/10 hover:border-emerald-500/40 transition-all group"
+        >
+          <svg className="w-8 h-8 text-white/70 group-hover:text-emerald-300 transition-colors" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17.6 9.48l1.84-3.18c.16-.31.04-.69-.26-.85-.29-.15-.65-.06-.83.22l-1.88 3.24C14.9 8.13 13.5 7.75 12 7.75s-2.9.38-4.47 1.16L5.65 5.67c-.19-.28-.54-.37-.83-.22-.29.16-.42.54-.26.85L6.4 9.48C3.3 11.25 1.28 14.44 1 18h22c-.28-3.56-2.3-6.75-5.4-8.52zM7 15.25c-.69 0-1.25-.56-1.25-1.25s.56-1.25 1.25-1.25 1.25.56 1.25 1.25-.56 1.25-1.25 1.25zm10 0c-.69 0-1.25-.56-1.25-1.25s.56-1.25 1.25-1.25 1.25.56 1.25 1.25-.56 1.25-1.25 1.25z"/>
+          </svg>
+          <span className="text-white/80 group-hover:text-white font-bold text-sm transition-colors">Android</span>
+          <span className="text-white/30 text-[10px]">Android Phone / Tablet</span>
+        </button>
+      </div>
+      <p className="text-white/20 text-[10px] mt-4">You can change this anytime by reloading</p>
+    </div>
+  );
+}
+
 function TurnstileGate({ onVerified }: { onVerified: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
@@ -168,20 +211,15 @@ function TurnstileGate({ onVerified }: { onVerified: () => void }) {
 }
 
 interface LiveVideoPlayerProps {
-  /** Live class schedule / video ID */
   videoId: string;
   batchId: string;
   subjectId?: string;
   subjectSlug?: string;
   title: string;
-  /** Whether the class is currently live */
   isLive?: boolean;
-  /** Direct CloudFront / CDN / YouTube URL already on the item (skips API lookup) */
   directUrl?: string;
-  /** urlType from the live class item, e.g. "awsVideo", "penpencilvdo", "youtube" */
   urlType?: string;
   onClose: () => void;
-  /** When true, renders as a full page instead of a fixed modal overlay */
   fullPage?: boolean;
 }
 
@@ -214,13 +252,13 @@ export default function LiveVideoPlayer({
   onClose,
   fullPage = false,
 }: LiveVideoPlayerProps) {
+  const [device, setDevice] = useState<DeviceType>(null);
   const [verified, setVerified] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [progress, setProgress] = useState("");
   const [youtubeUrl, setYoutubeUrl] = useState<string | null>(null);
 
-  // Player state
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -245,6 +283,103 @@ export default function LiveVideoPlayer({
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+  // ─── iOS Native HLS ───────────────────────────────────────────────────────
+  function loadIosNativeHls(video: HTMLVideoElement, src: string) {
+    setProgress("Loading stream...");
+    video.src = src;
+    video.load();
+    video.addEventListener("loadedmetadata", () => {
+      video.play().catch(() => {});
+      setLoading(false);
+      setPlaying(true);
+    }, { once: true });
+    video.addEventListener("error", () => {
+      setError("Failed to load stream on iOS. Please retry.");
+      setLoading(false);
+    }, { once: true });
+  }
+
+  // ─── Load HLS (Android / Desktop via hls.js) ─────────────────────────────
+  async function loadHls(video: HTMLVideoElement, src: string) {
+    setProgress("Loading stream...");
+
+    // iOS: use native HLS
+    if (device === "ios" || (!device && video.canPlayType("application/vnd.apple.mpegurl"))) {
+      loadIosNativeHls(video, src);
+      return;
+    }
+
+    const Hls = (await import("hls.js")).default;
+    if (Hls.isSupported()) {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: isLive,
+        startLevel: -1,
+        maxBufferLength: isLive ? 30 : 60,
+        maxMaxBufferLength: isLive ? 60 : 120,
+        manifestLoadingMaxRetry: 4,
+        manifestLoadingRetryDelay: 1000,
+        levelLoadingMaxRetry: 4,
+        levelLoadingRetryDelay: 1000,
+        fragLoadingMaxRetry: 6,
+        fragLoadingRetryDelay: 1000,
+      });
+      hlsRef.current = hls;
+      hls.loadSource(src);
+      hls.attachMedia(video);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        const lvls: QualityLevel[] = hls.levels.map(
+          (l: { height: number; bitrate: number }, i: number) => ({
+            height: l.height || 0,
+            bitrate: l.bitrate || 0,
+            index: i,
+          })
+        ).sort((a: QualityLevel, b: QualityLevel) => b.height - a.height);
+        setQualities(lvls);
+        video.play().catch(() => {});
+        setLoading(false);
+        setPlaying(true);
+      });
+
+      let mediaRecoveryAttempted = false;
+      hls.on(Hls.Events.ERROR, (_: unknown, errData: { fatal?: boolean; type?: string; details?: string; response?: { code?: number } }) => {
+        if (!errData.fatal) return;
+
+        if (errData.type === "networkError") {
+          hls.startLoad();
+        } else if (errData.type === "mediaError") {
+          if (!mediaRecoveryAttempted) {
+            mediaRecoveryAttempted = true;
+            hls.recoverMediaError();
+          } else {
+            hls.swapAudioCodec();
+            hls.recoverMediaError();
+          }
+        } else {
+          const detail = errData.details || "playback failed";
+          const httpCode = errData.response?.code;
+          const msg = httpCode
+            ? `HLS error: ${detail} (HTTP ${httpCode}). Please retry.`
+            : `HLS error: ${detail}. Please retry.`;
+          setError(msg);
+          setLoading(false);
+        }
+      });
+    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      // Fallback native
+      loadIosNativeHls(video, src);
+    } else {
+      setError("HLS playback not supported in this browser");
+      setLoading(false);
+    }
+  }
 
   // ─── Load Video ───────────────────────────────────────────────────────────
   const loadVideo = useCallback(async () => {
@@ -271,11 +406,9 @@ export default function LiveVideoPlayer({
     try {
       let data: VideoData;
 
-      // If a direct URL is available, send it to the API for resolution (proxy + DRM)
       if (directUrl) {
         setProgress("Resolving video URL...");
 
-        // YouTube direct
         if (directUrl.includes("youtube.com") || directUrl.includes("youtu.be") ||
             urlType === "youtube") {
           setYoutubeUrl(directUrl);
@@ -283,7 +416,6 @@ export default function LiveVideoPlayer({
           return;
         }
 
-        // Pass direct URL through our live-video API for proxying
         const params = new URLSearchParams({
           direct_url: directUrl,
           batch_id: batchId,
@@ -294,7 +426,6 @@ export default function LiveVideoPlayer({
         const res = await fetch(`/api/live-video?${params.toString()}`);
         data = await res.json();
       } else {
-        // Standard lookup via schedule/video ID
         const params = new URLSearchParams({
           video_id: videoId,
           batch_id: batchId,
@@ -321,14 +452,25 @@ export default function LiveVideoPlayer({
       const video = videoRef.current;
       if (!video) return;
 
-      // DRM playback via Shaka Player
+      // iOS: skip DRM, use HLS directly
+      if (device === "ios") {
+        const hlsSrc = data.hlsUrl || data.videoUrl || (data.mpdUrl ? data.mpdUrl.replace(/\.mpd(\?|$)/, ".m3u8$1") : "");
+        if (hlsSrc) {
+          loadIosNativeHls(video, hlsSrc);
+        } else {
+          setError("No playable URL found for iOS");
+          setLoading(false);
+        }
+        return;
+      }
+
+      // DRM playback via Shaka Player (Android / Desktop)
       if (data.type === "drm" && data.mpdUrl && data.kid && data.key) {
         setProgress("Loading DRM player...");
         const shaka = await import("shaka-player");
         shaka.default.polyfill.installAll();
 
         if (!shaka.default.Player.isBrowserSupported()) {
-          // Fall back to proxied HLS
           const fallbackHls = data.hlsUrl || data.mpdUrl.replace(/\.mpd(\?|$)/, ".m3u8$1");
           const proxied = fallbackHls.startsWith("/api/hls-proxy")
             ? fallbackHls
@@ -341,7 +483,6 @@ export default function LiveVideoPlayer({
         await player.attach(video);
         shakaRef.current = player;
 
-        // Forward CloudFront auth query string to every request
         const mpdParts = data.mpdUrl.split("?");
         if (mpdParts.length > 1) {
           const queryString = "?" + mpdParts[1];
@@ -361,7 +502,6 @@ export default function LiveVideoPlayer({
 
         player.addEventListener("error", (event: Event) => {
           const detail = (event as Event & { detail?: { message?: string; code?: number } })?.detail;
-          // On DRM error, fall back to proxied HLS
           if (data.hlsUrl) {
             setProgress("DRM failed, trying HLS...");
             loadHls(video, data.hlsUrl).catch(() => {
@@ -393,7 +533,6 @@ export default function LiveVideoPlayer({
           setLoading(false);
           setPlaying(true);
         } catch {
-          // DRM load failed — fall back to proxied HLS
           if (data.hlsUrl) {
             setProgress("Switching to HLS...");
             await shakaRef.current?.destroy().catch(() => {});
@@ -407,7 +546,7 @@ export default function LiveVideoPlayer({
         return;
       }
 
-      // HLS (proxied URL from our API)
+      // HLS
       const hlsSrc = data.hlsUrl || data.videoUrl || "";
       if ((data.type === "hls" || data.type === "live" || data.type === "drm") && hlsSrc) {
         await loadHls(video, hlsSrc);
@@ -438,93 +577,7 @@ export default function LiveVideoPlayer({
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoId, batchId, subjectId, subjectSlug, directUrl, urlType]);
-
-  async function loadHls(video: HTMLVideoElement, src: string) {
-    setProgress("Loading stream...");
-    const Hls = (await import("hls.js")).default;
-    if (Hls.isSupported()) {
-      // Destroy any existing instance
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
-
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: isLive,
-        startLevel: -1,
-        maxBufferLength: isLive ? 30 : 60,
-        maxMaxBufferLength: isLive ? 60 : 120,
-        // Retry settings for network errors
-        manifestLoadingMaxRetry: 4,
-        manifestLoadingRetryDelay: 1000,
-        levelLoadingMaxRetry: 4,
-        levelLoadingRetryDelay: 1000,
-        fragLoadingMaxRetry: 6,
-        fragLoadingRetryDelay: 1000,
-      });
-      hlsRef.current = hls;
-      hls.loadSource(src);
-      hls.attachMedia(video);
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        const lvls: QualityLevel[] = hls.levels.map(
-          (l: { height: number; bitrate: number }, i: number) => ({
-            height: l.height || 0,
-            bitrate: l.bitrate || 0,
-            index: i,
-          })
-        ).sort((a: QualityLevel, b: QualityLevel) => b.height - a.height);
-        setQualities(lvls);
-        video.play().catch(() => {});
-        setLoading(false);
-        setPlaying(true);
-      });
-
-      let mediaRecoveryAttempted = false;
-      hls.on(Hls.Events.ERROR, (_: unknown, errData: { fatal?: boolean; type?: string; details?: string; response?: { code?: number } }) => {
-        if (!errData.fatal) return;
-
-        if (errData.type === "networkError") {
-          // Try to recover from network errors
-          hls.startLoad();
-        } else if (errData.type === "mediaError") {
-          if (!mediaRecoveryAttempted) {
-            mediaRecoveryAttempted = true;
-            hls.recoverMediaError();
-          } else {
-            // Second media error — swap codec
-            hls.swapAudioCodec();
-            hls.recoverMediaError();
-          }
-        } else {
-          const detail = errData.details || "playback failed";
-          const httpCode = errData.response?.code;
-          const msg = httpCode
-            ? `HLS error: ${detail} (HTTP ${httpCode}). Please retry.`
-            : `HLS error: ${detail}. Please retry.`;
-          setError(msg);
-          setLoading(false);
-        }
-      });
-    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      // Safari native HLS
-      video.src = src;
-      video.addEventListener("loadedmetadata", () => {
-        video.play().catch(() => {});
-        setLoading(false);
-        setPlaying(true);
-      }, { once: true });
-      video.addEventListener("error", () => {
-        setError("Failed to load stream");
-        setLoading(false);
-      }, { once: true });
-    } else {
-      setError("HLS playback not supported in this browser");
-      setLoading(false);
-    }
-  }
+  }, [videoId, batchId, subjectId, subjectSlug, directUrl, urlType, device]);
 
   useEffect(() => {
     if (!verified) return;
@@ -585,7 +638,6 @@ export default function LiveVideoPlayer({
     return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
 
-  // Auto-enter fullscreen when opened as a full page; exit on unmount
   useEffect(() => {
     if (!fullPage) return;
     const el = containerRef.current;
@@ -599,13 +651,13 @@ export default function LiveVideoPlayer({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fullPage]);
 
-  const resetControlsTimer = () => {
+  const resetControlsTimer = useCallback(() => {
     setShowControls(true);
     if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
     controlsTimerRef.current = setTimeout(() => {
       if (videoRef.current && !videoRef.current.paused) setShowControls(false);
     }, 3000);
-  };
+  }, []);
 
   function togglePlay() {
     const video = videoRef.current;
@@ -712,6 +764,19 @@ export default function LiveVideoPlayer({
           )}
           <h2 className="text-white font-bold text-xs sm:text-[15px] line-clamp-1 opacity-90">{title}</h2>
         </div>
+        {/* Device badge */}
+        {device && (
+          <button
+            onClick={() => { setDevice(null); setVerified(false); setLoading(true); setError(""); }}
+            className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg bg-white/8 border border-white/10 text-white/40 hover:text-white/70 text-[10px] transition-colors"
+            title="Change device"
+          >
+            {device === "ios" ? "iOS" : "Android"}
+            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
         <button
           onClick={onClose}
           className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-white/10 hover:bg-red-500/80 text-white/60 hover:text-white flex items-center justify-center transition-all flex-shrink-0 border border-white/10"
@@ -722,17 +787,23 @@ export default function LiveVideoPlayer({
         </button>
       </div>
 
-      {/* Player wrapper — takes all remaining vertical space */}
+      {/* Player wrapper */}
       <div className="flex-1 flex flex-col min-h-0 px-2 sm:px-4 pb-2 sm:pb-3">
         <div
           ref={wrapperRef}
           className="relative w-full h-full bg-[#060810] rounded-xl sm:rounded-2xl overflow-hidden border border-white/5"
           onMouseMove={resetControlsTimer}
           onMouseEnter={resetControlsTimer}
-          onClick={() => { if (!youtubeUrl && !loading && !error) { togglePlay(); resetControlsTimer(); } }}
+          onTouchStart={resetControlsTimer}
+          onClick={() => { if (device && !youtubeUrl && !loading && !error) { togglePlay(); resetControlsTimer(); } }}
         >
-          {/* ── Verification gate ── */}
-          {!verified && (
+          {/* ── Step 1: Device Selector ── */}
+          {!device && (
+            <DeviceSelector onSelect={(d) => setDevice(d)} />
+          )}
+
+          {/* ── Step 2: Verification gate ── */}
+          {device && !verified && (
             <div className="absolute inset-0 z-30 flex items-center justify-center"
               style={{ background: "linear-gradient(135deg, #0d0f1e 0%, #111827 100%)" }}>
               <TurnstileGate onVerified={() => setVerified(true)} />
@@ -740,7 +811,7 @@ export default function LiveVideoPlayer({
           )}
 
           {/* Loading */}
-          {verified && loading && (
+          {device && verified && loading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black/70">
               <div className="relative mb-4">
                 <div className="w-14 h-14 rounded-full border-4 border-white/10 border-t-red-500 animate-spin" />
@@ -752,7 +823,7 @@ export default function LiveVideoPlayer({
           )}
 
           {/* Error */}
-          {verified && error && !loading && (
+          {device && verified && error && !loading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-[#060810]/95 px-6">
               <div className="w-20 h-20 rounded-3xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-5">
                 <svg className="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -791,7 +862,7 @@ export default function LiveVideoPlayer({
           )}
 
           {/* YouTube embed */}
-          {verified && youtubeUrl && !loading && (
+          {device && verified && youtubeUrl && !loading && (
             <iframe
               src={youtubeUrl.replace("watch?v=", "embed/").split("&")[0] + "?autoplay=1"}
               className="w-full h-full"
@@ -803,11 +874,18 @@ export default function LiveVideoPlayer({
 
           {/* Video element */}
           {!youtubeUrl && (
-            <video ref={videoRef} className="w-full h-full" playsInline />
+            <video
+              ref={videoRef}
+              className="w-full h-full"
+              playsInline
+              webkit-playsinline="true"
+              x-webkit-airplay="allow"
+              controlsList="nodownload"
+            />
           )}
 
           {/* Controls */}
-          {verified && !youtubeUrl && !error && (
+          {device && verified && !youtubeUrl && !error && (
             <div
               className={`absolute inset-0 flex flex-col justify-end transition-opacity duration-300 ${showControls || !playing ? "opacity-100" : "opacity-0"}`}
               onClick={(e) => e.stopPropagation()}
@@ -851,12 +929,12 @@ export default function LiveVideoPlayer({
                   {/* Skip (recordings only) */}
                   {!isLive && (
                     <>
-                      <button onClick={() => skip(-10)} className="text-white hover:text-red-300 transition-colors flex-shrink-0" title="Back 10s (←)">
+                      <button onClick={() => skip(-10)} className="text-white hover:text-red-300 transition-colors flex-shrink-0" title="Back 10s">
                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
                         </svg>
                       </button>
-                      <button onClick={() => skip(10)} className="text-white hover:text-red-300 transition-colors flex-shrink-0" title="Forward 10s (→)">
+                      <button onClick={() => skip(10)} className="text-white hover:text-red-300 transition-colors flex-shrink-0" title="Forward 10s">
                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/>
                         </svg>
@@ -884,7 +962,7 @@ export default function LiveVideoPlayer({
                     />
                   </div>
 
-                  {/* Time (recordings) */}
+                  {/* Time */}
                   {!isLive && (
                     <span className="text-white/70 text-xs flex-shrink-0 font-mono hidden sm:block">
                       {formatTime(currentTime)} / {formatTime(duration)}
@@ -918,8 +996,8 @@ export default function LiveVideoPlayer({
                     </div>
                   )}
 
-                  {/* Quality */}
-                  {qualities.length > 0 && (
+                  {/* Quality — only for Android/Desktop (hls.js exposes levels) */}
+                  {qualities.length > 0 && device !== "ios" && (
                     <div className="relative flex-shrink-0">
                       <button
                         onClick={(e) => { e.stopPropagation(); setShowQualityMenu(!showQualityMenu); setShowSpeedMenu(false); }}

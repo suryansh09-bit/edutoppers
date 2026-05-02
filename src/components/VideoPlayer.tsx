@@ -30,6 +30,8 @@ interface QualityLevel {
   index: number;
 }
 
+type DeviceType = "ios" | "android" | null;
+
 // ── Cloudflare Turnstile ────────────────────────────────────────────────────
 const TURNSTILE_SITE_KEY = "0x4AAAAAADHS5DlouHNP_hXs";
 
@@ -42,6 +44,47 @@ declare global {
       getResponse: (widgetId: string) => string | undefined;
     };
   }
+}
+
+// ── Device Selector ─────────────────────────────────────────────────────────
+function DeviceSelector({ onSelect }: { onSelect: (device: DeviceType) => void }) {
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center px-6 z-40"
+      style={{ background: "linear-gradient(135deg, #0d0f1e 0%, #111827 100%)" }}>
+      <div className="w-12 h-12 rounded-2xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center mb-4">
+        <svg className="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+        </svg>
+      </div>
+      <h3 className="text-white font-extrabold text-base mb-1">Select Your Device</h3>
+      <p className="text-white/40 text-xs text-center mb-6 max-w-[220px]">Choose your device type for the best playback experience</p>
+      <div className="flex gap-3 w-full max-w-xs">
+        {/* iOS */}
+        <button
+          onClick={() => onSelect("ios")}
+          className="flex-1 flex flex-col items-center gap-2 py-4 px-3 rounded-2xl bg-white/5 hover:bg-indigo-500/20 border border-white/10 hover:border-indigo-500/40 transition-all group"
+        >
+          <svg className="w-8 h-8 text-white/70 group-hover:text-indigo-300 transition-colors" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+          </svg>
+          <span className="text-white/80 group-hover:text-white font-bold text-sm transition-colors">iPhone / iPad</span>
+          <span className="text-white/30 text-[10px]">iOS / iPadOS</span>
+        </button>
+        {/* Android */}
+        <button
+          onClick={() => onSelect("android")}
+          className="flex-1 flex flex-col items-center gap-2 py-4 px-3 rounded-2xl bg-white/5 hover:bg-emerald-500/20 border border-white/10 hover:border-emerald-500/40 transition-all group"
+        >
+          <svg className="w-8 h-8 text-white/70 group-hover:text-emerald-300 transition-colors" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17.6 9.48l1.84-3.18c.16-.31.04-.69-.26-.85-.29-.15-.65-.06-.83.22l-1.88 3.24C14.9 8.13 13.5 7.75 12 7.75s-2.9.38-4.47 1.16L5.65 5.67c-.19-.28-.54-.37-.83-.22-.29.16-.42.54-.26.85L6.4 9.48C3.3 11.25 1.28 14.44 1 18h22c-.28-3.56-2.3-6.75-5.4-8.52zM7 15.25c-.69 0-1.25-.56-1.25-1.25s.56-1.25 1.25-1.25 1.25.56 1.25 1.25-.56 1.25-1.25 1.25zm10 0c-.69 0-1.25-.56-1.25-1.25s.56-1.25 1.25-1.25 1.25.56 1.25 1.25-.56 1.25-1.25 1.25z"/>
+          </svg>
+          <span className="text-white/80 group-hover:text-white font-bold text-sm transition-colors">Android</span>
+          <span className="text-white/30 text-[10px]">Android Phone / Tablet</span>
+        </button>
+      </div>
+      <p className="text-white/20 text-[10px] mt-4">You can change this anytime by reloading</p>
+    </div>
+  );
 }
 
 function TurnstileGate({ onVerified }: { onVerified: () => void }) {
@@ -69,7 +112,6 @@ function TurnstileGate({ onVerified }: { onVerified: () => void }) {
           setStatus("verified");
           setTimeout(() => { if (isMounted) onVerified(); }, 800);
         } else {
-          // Reset and let user try again
           setStatus("ready");
           if (widgetIdRef.current && window.turnstile) {
             try { window.turnstile.reset(widgetIdRef.current); } catch {}
@@ -77,7 +119,6 @@ function TurnstileGate({ onVerified }: { onVerified: () => void }) {
         }
       } catch {
         if (!isMounted) return;
-        // Network error during verification — reset widget
         setStatus("ready");
         if (widgetIdRef.current && window.turnstile) {
           try { window.turnstile.reset(widgetIdRef.current); } catch {}
@@ -133,11 +174,9 @@ function TurnstileGate({ onVerified }: { onVerified: () => void }) {
   }, []);
 
   return (
-    /* Compact bottom-anchored verification bar */
     <div className="absolute inset-0 flex flex-col items-center justify-center px-4"
       style={{ background: "linear-gradient(135deg, #0d0f1e 0%, #111827 100%)" }}>
 
-      {/* Small lock icon */}
       <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center mb-2">
         <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
@@ -147,7 +186,6 @@ function TurnstileGate({ onVerified }: { onVerified: () => void }) {
       <p className="text-white/70 font-bold text-xs mb-1">Verify to watch</p>
       <p className="text-white/35 text-[10px] mb-3">Quick human check before playback</p>
 
-      {/* Turnstile widget — scaled down */}
       <div
         ref={containerRef}
         style={{ transform: "scale(0.82)", transformOrigin: "center top" }}
@@ -160,14 +198,12 @@ function TurnstileGate({ onVerified }: { onVerified: () => void }) {
           Loading...
         </div>
       )}
-
       {status === "verifying" && (
         <div className="flex items-center gap-1.5 text-indigo-300 text-[10px] font-medium mt-1">
           <div className="w-3 h-3 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin" />
           Verifying...
         </div>
       )}
-
       {status === "verified" && (
         <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-[10px] mt-1">
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -176,7 +212,6 @@ function TurnstileGate({ onVerified }: { onVerified: () => void }) {
           Verified! Loading...
         </div>
       )}
-
       {status === "error" && (
         <div className="flex flex-col items-center gap-1.5 mt-1">
           <p className="text-amber-400 text-[10px]">Verification failed.</p>
@@ -193,7 +228,6 @@ function TurnstileGate({ onVerified }: { onVerified: () => void }) {
           </button>
         </div>
       )}
-
       <p className="text-white/15 text-[9px] mt-3">Protected by Cloudflare</p>
     </div>
   );
@@ -208,6 +242,8 @@ export default function VideoPlayer({
   onClose,
   fullPage = false,
 }: VideoPlayerProps) {
+  // Step 1: device selection, Step 2: turnstile verification, Step 3: play
+  const [device, setDevice] = useState<DeviceType>(null);
   const [verified, setVerified] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -240,9 +276,33 @@ export default function VideoPlayer({
 
   const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
-  // ─── Load HLS ─────────────────────────────────────────────────────────────
+  // ─── iOS Native HLS ───────────────────────────────────────────────────────
+  function loadIosNativeHls(video: HTMLVideoElement, src: string) {
+    setProgress("Loading stream...");
+    // iOS Safari supports HLS natively — set src directly
+    video.src = src;
+    video.load();
+    video.addEventListener("loadedmetadata", () => {
+      video.play().catch(() => {});
+      setLoading(false);
+      setPlaying(true);
+    }, { once: true });
+    video.addEventListener("error", () => {
+      setError("stream_error");
+      setLoading(false);
+    }, { once: true });
+  }
+
+  // ─── Load HLS (Android / Desktop via hls.js) ─────────────────────────────
   async function loadHls(video: HTMLVideoElement, src: string) {
     setProgress("Loading stream...");
+
+    // iOS: use native HLS
+    if (device === "ios" || (!device && video.canPlayType("application/vnd.apple.mpegurl"))) {
+      loadIosNativeHls(video, src);
+      return;
+    }
+
     const Hls = (await import("hls.js")).default;
     if (Hls.isSupported()) {
       if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
@@ -296,16 +356,8 @@ export default function VideoPlayer({
         }
       });
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = src;
-      video.addEventListener("loadedmetadata", () => {
-        video.play().catch(() => {});
-        setLoading(false);
-        setPlaying(true);
-      }, { once: true });
-      video.addEventListener("error", () => {
-        setError("stream_error");
-        setLoading(false);
-      }, { once: true });
+      // Fallback native HLS
+      loadIosNativeHls(video, src);
     } else {
       setError("browser_unsupported");
       setLoading(false);
@@ -347,12 +399,23 @@ export default function VideoPlayer({
       const video = videoRef.current;
       if (!video) return;
 
+      // iOS: skip DRM (Shaka) entirely, use HLS fallback
+      if (device === "ios") {
+        const hlsSrc = data.hlsUrl || data.videoUrl || data.mpdUrl || "";
+        if (hlsSrc) {
+          loadIosNativeHls(video, hlsSrc);
+        } else {
+          setError("not_found");
+          setLoading(false);
+        }
+        return;
+      }
+
       if (data.type === "drm" && data.mpdUrl && data.kid && data.key) {
         setProgress("Initializing player...");
         const shaka = await import("shaka-player");
         shaka.default.polyfill.installAll();
 
-        // Silence the MediaSource warning from shaka
         const origWarn = console.warn;
         console.warn = (...args: unknown[]) => {
           if (typeof args[0] === "string" && args[0].includes("MediaSource")) return;
@@ -442,7 +505,7 @@ export default function VideoPlayer({
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [batchId, subjectId, childId, subjectSlug]);
+  }, [batchId, subjectId, childId, subjectSlug, device]);
 
   useEffect(() => {
     if (!verified) return;
@@ -580,7 +643,6 @@ export default function VideoPlayer({
     return `${m}:${String(sec).padStart(2, "0")}`;
   }
 
-  // Error message mapping
   const errorMessages: Record<string, { title: string; desc: string }> = {
     not_found: { title: "Video not available", desc: "This video URL could not be resolved. Try retrying 2–3 times — it usually works!" },
     stream_error: { title: "Stream error", desc: "The stream encountered an error. Tap Retry — most videos play on 2nd or 3rd attempt." },
@@ -611,6 +673,19 @@ export default function VideoPlayer({
           <span className="hidden sm:inline">Back</span>
         </button>
         <h2 className="text-white font-bold text-xs sm:text-[15px] line-clamp-1 flex-1 opacity-90">{title}</h2>
+        {/* Device badge */}
+        {device && (
+          <button
+            onClick={() => { setDevice(null); setVerified(false); setLoading(true); setError(""); }}
+            className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg bg-white/8 border border-white/10 text-white/40 hover:text-white/70 text-[10px] transition-colors"
+            title="Change device"
+          >
+            {device === "ios" ? "iOS" : "Android"}
+            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
         <button
           onClick={onClose}
           className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-white/10 hover:bg-red-500/80 text-white/60 hover:text-white flex items-center justify-center transition-all flex-shrink-0 border border-white/10"
@@ -621,7 +696,7 @@ export default function VideoPlayer({
         </button>
       </div>
 
-      {/* ── Player box — takes all remaining vertical space ── */}
+      {/* ── Player box ── */}
       <div className="flex-1 flex flex-col min-h-0 px-2 sm:px-4 pb-2 sm:pb-3">
         <div
           ref={wrapperRef}
@@ -629,11 +704,16 @@ export default function VideoPlayer({
           onMouseMove={resetControlsTimer}
           onMouseEnter={resetControlsTimer}
           onTouchStart={resetControlsTimer}
-          onClick={() => { if (verified && !youtubeUrl && !loading && !error) { togglePlay(); resetControlsTimer(); } }}
+          onClick={() => { if (device && verified && !youtubeUrl && !loading && !error) { togglePlay(); resetControlsTimer(); } }}
         >
 
-          {/* ── Verification gate ── */}
-          {!verified && (
+          {/* ── Step 1: Device Selector ── */}
+          {!device && (
+            <DeviceSelector onSelect={(d) => setDevice(d)} />
+          )}
+
+          {/* ── Step 2: Verification gate ── */}
+          {device && !verified && (
             <div className="absolute inset-0 z-30 flex items-center justify-center"
               style={{ background: "linear-gradient(135deg, #0d0f1e 0%, #111827 100%)" }}>
               <TurnstileGate onVerified={() => setVerified(true)} />
@@ -641,7 +721,7 @@ export default function VideoPlayer({
           )}
 
           {/* ── Loading ── */}
-          {verified && loading && (
+          {device && verified && loading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black/70">
               <div className="relative mb-3 sm:mb-4">
                 <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full border-4 border-white/10 border-t-indigo-500 animate-spin" />
@@ -653,18 +733,15 @@ export default function VideoPlayer({
           )}
 
           {/* ── Error state ── */}
-          {verified && error && !loading && (
+          {device && verified && error && !loading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-[#060810]/95 px-4 sm:px-6 overflow-y-auto py-4">
               <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-3 sm:mb-5 flex-shrink-0">
                 <svg className="w-7 h-7 sm:w-10 sm:h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
                 </svg>
               </div>
-
               <h3 className="text-white font-extrabold text-sm sm:text-base mb-1">{errInfo.title}</h3>
               <p className="text-white/40 text-[11px] sm:text-xs text-center max-w-xs leading-relaxed mb-3 sm:mb-5">{errInfo.desc}</p>
-
-              {/* Retry tip card */}
               <div className="w-full max-w-sm bg-amber-500/10 border border-amber-500/25 rounded-xl sm:rounded-2xl p-3 sm:p-4 mb-3 sm:mb-5 text-left">
                 <div className="flex items-start gap-2.5">
                   <span className="text-base sm:text-xl flex-shrink-0 mt-0.5">💡</span>
@@ -676,7 +753,6 @@ export default function VideoPlayer({
                   </div>
                 </div>
               </div>
-
               <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-center">
                 <button
                   onClick={(e) => { e.stopPropagation(); setRetryCount(c => c + 1); loadVideo(); }}
@@ -708,7 +784,7 @@ export default function VideoPlayer({
           )}
 
           {/* ── YouTube ── */}
-          {verified && youtubeUrl && !loading && (
+          {device && verified && youtubeUrl && !loading && (
             <iframe
               src={youtubeUrl.replace("watch?v=", "embed/").split("&")[0] + "?autoplay=1"}
               className="w-full h-full"
@@ -720,11 +796,18 @@ export default function VideoPlayer({
 
           {/* ── Video element ── */}
           {!youtubeUrl && (
-            <video ref={videoRef} className="w-full h-full" playsInline />
+            <video
+              ref={videoRef}
+              className="w-full h-full"
+              playsInline
+              webkit-playsinline="true"
+              x-webkit-airplay="allow"
+              controlsList="nodownload"
+            />
           )}
 
           {/* ── Custom Controls ── */}
-          {verified && !youtubeUrl && !error && (
+          {device && verified && !youtubeUrl && !error && (
             <div
               className={`absolute inset-0 flex flex-col justify-end transition-opacity duration-300 ${showControls || !playing ? "opacity-100" : "opacity-0"}`}
               onClick={(e) => e.stopPropagation()}
@@ -772,8 +855,8 @@ export default function VideoPlayer({
                       </div>
                     )}
                   </div>
-                  {/* Quality */}
-                  {qualities.length > 0 && (
+                  {/* Quality — only for non-iOS (native HLS doesn't expose levels) */}
+                  {qualities.length > 0 && device !== "ios" && (
                     <div className="relative flex-shrink-0">
                       <button onClick={(e) => { e.stopPropagation(); setShowQualityMenu(!showQualityMenu); setShowSpeedMenu(false); }}
                         className="text-white/70 hover:text-white text-[10px] sm:text-xs font-bold px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">
