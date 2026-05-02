@@ -131,44 +131,45 @@ function TurnstileGate({ onVerified }: { onVerified: () => void }) {
   }, []);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[320px] gap-5 px-6">
+    <div className="flex flex-col items-center justify-center w-full h-full gap-3 sm:gap-5 px-4 py-6 sm:px-8">
       {/* Shield icon */}
-      <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-indigo-500/20 to-violet-500/20 border border-indigo-500/30 flex items-center justify-center mb-1">
-        <svg className="w-10 h-10 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-indigo-500/20 to-violet-500/20 border border-indigo-500/30 flex items-center justify-center">
+        <svg className="w-7 h-7 sm:w-10 sm:h-10 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
         </svg>
       </div>
 
       <div className="text-center">
-        <h3 className="text-white font-extrabold text-lg mb-1">Human Verification</h3>
-        <p className="text-white/50 text-sm max-w-xs leading-relaxed">
-          Complete the security check below to unlock video playback
+        <h3 className="text-white font-extrabold text-base sm:text-lg mb-0.5 sm:mb-1">Human Verification</h3>
+        <p className="text-white/50 text-xs sm:text-sm max-w-[240px] sm:max-w-xs leading-relaxed">
+          Complete the check below to unlock video playback
         </p>
       </div>
 
-      {/* Turnstile widget */}
+      {/* Turnstile widget — scale down on small screens */}
       <div
         ref={containerRef}
-        className={`transition-all duration-300 ${status === "loading" ? "opacity-0 scale-95" : "opacity-100 scale-100"}`}
+        className={`transition-all duration-300 origin-center ${status === "loading" ? "opacity-0 scale-90" : "opacity-100 scale-100"}`}
+        style={{ transform: undefined }}
       />
 
       {status === "loading" && (
-        <div className="flex items-center gap-2 text-white/40 text-sm">
-          <div className="w-4 h-4 border-2 border-white/20 border-t-indigo-400 rounded-full animate-spin" />
+        <div className="flex items-center gap-2 text-white/40 text-xs sm:text-sm">
+          <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-white/20 border-t-indigo-400 rounded-full animate-spin" />
           Loading verification...
         </div>
       )}
 
       {status === "verifying" && (
-        <div className="flex items-center gap-2 text-indigo-300 text-sm font-medium">
-          <div className="w-4 h-4 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin" />
+        <div className="flex items-center gap-2 text-indigo-300 text-xs sm:text-sm font-medium">
+          <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin" />
           Verifying...
         </div>
       )}
 
       {status === "error" && (
         <div className="text-center">
-          <p className="text-amber-400 text-sm mb-3">Verification service unavailable. Please try again later.</p>
+          <p className="text-amber-400 text-xs sm:text-sm mb-2.5">Verification unavailable. Please retry.</p>
           <button
             onClick={() => {
               setStatus("loading");
@@ -176,7 +177,7 @@ function TurnstileGate({ onVerified }: { onVerified: () => void }) {
                 try { window.turnstile.reset(widgetIdRef.current); setStatus("ready"); } catch {}
               }
             }}
-            className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition-colors"
+            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs sm:text-sm transition-colors"
           >
             Retry Verification
           </button>
@@ -184,9 +185,9 @@ function TurnstileGate({ onVerified }: { onVerified: () => void }) {
       )}
 
       {status === "verified" && (
-        <div className="flex items-center gap-2.5 text-emerald-400 font-bold text-sm">
-          <div className="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs sm:text-sm">
+          <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center flex-shrink-0">
+            <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
             </svg>
           </div>
@@ -195,8 +196,8 @@ function TurnstileGate({ onVerified }: { onVerified: () => void }) {
       )}
 
       {/* Powered by Cloudflare note */}
-      <p className="text-white/25 text-[11px] flex items-center gap-1.5 mt-1">
-        <svg className="w-3.5 h-3.5" viewBox="0 0 109 41" fill="currentColor">
+      <p className="text-white/20 text-[10px] flex items-center gap-1 mt-0">
+        <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 109 41" fill="currentColor">
           <path d="M71.2 21.8c-.4-1.2-1.6-2.2-3-2.2H35.9c-.3 0-.5.2-.6.4-.1.3 0 .5.2.7 0 0 1.7 1.7 2.5 5.1.1.3.3.5.6.5h29.2c.6 0 1.1-.4 1.2-1l2.2-3.5zm.1 10.5c-.4-1.2-1.6-2-3-2H35.9c-.3 0-.5.2-.6.4-.1.3 0 .5.2.7 0 0 1.7 1.7 2.5 5.1.1.3.3.5.6.5h29.2c.6 0 1.1-.4 1.2-1l2.3-3.7z"/>
         </svg>
         Protected by Cloudflare Turnstile
@@ -585,7 +586,7 @@ export default function VideoPlayer({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-1.5 sm:p-4"
       style={{ background: "rgba(2, 4, 12, 0.97)", backdropFilter: "blur(10px)" }}
       ref={containerRef}
       onClick={(e) => { if (e.target === containerRef.current) onClose(); }}
@@ -593,22 +594,22 @@ export default function VideoPlayer({
       <div className="relative w-full max-w-5xl animate-scale-up">
 
         {/* ── Top bar ── */}
-        <div className="flex items-center gap-3 mb-3 px-1">
+        <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3 px-0.5 sm:px-1">
           <button
             onClick={onClose}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all text-sm font-semibold flex-shrink-0 border border-white/10"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all text-xs sm:text-sm font-semibold flex-shrink-0 border border-white/10"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
             </svg>
             <span className="hidden sm:inline">Back</span>
           </button>
-          <h2 className="text-white font-bold text-sm sm:text-[15px] line-clamp-1 flex-1 opacity-90">{title}</h2>
+          <h2 className="text-white font-bold text-xs sm:text-[15px] line-clamp-1 flex-1 opacity-90">{title}</h2>
           <button
             onClick={onClose}
-            className="w-9 h-9 rounded-xl bg-white/10 hover:bg-red-500/80 text-white/60 hover:text-white flex items-center justify-center transition-all flex-shrink-0 border border-white/10"
+            className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-white/10 hover:bg-red-500/80 text-white/60 hover:text-white flex items-center justify-center transition-all flex-shrink-0 border border-white/10"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -617,9 +618,10 @@ export default function VideoPlayer({
         {/* ── Player box ── */}
         <div
           ref={wrapperRef}
-          className="relative aspect-video bg-[#060810] rounded-2xl overflow-hidden border border-white/5"
+          className="relative aspect-video bg-[#060810] rounded-xl sm:rounded-2xl overflow-hidden border border-white/5"
           onMouseMove={resetControlsTimer}
           onMouseEnter={resetControlsTimer}
+          onTouchStart={resetControlsTimer}
           onClick={() => { if (verified && !youtubeUrl && !loading && !error) { togglePlay(); resetControlsTimer(); } }}
         >
 
@@ -634,46 +636,46 @@ export default function VideoPlayer({
           {/* ── Loading ── */}
           {verified && loading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black/70">
-              <div className="relative mb-4">
-                <div className="w-14 h-14 rounded-full border-4 border-white/10 border-t-indigo-500 animate-spin" />
-                <div className="absolute inset-0 w-14 h-14 rounded-full border-4 border-transparent border-b-violet-400 animate-spin"
+              <div className="relative mb-3 sm:mb-4">
+                <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full border-4 border-white/10 border-t-indigo-500 animate-spin" />
+                <div className="absolute inset-0 w-10 h-10 sm:w-14 sm:h-14 rounded-full border-4 border-transparent border-b-violet-400 animate-spin"
                   style={{ animationDirection: "reverse", animationDuration: "1.5s" }} />
               </div>
-              <p className="text-white/60 text-sm font-medium">{progress}</p>
+              <p className="text-white/60 text-xs sm:text-sm font-medium">{progress}</p>
             </div>
           )}
 
           {/* ── Error state ── */}
           {verified && error && !loading && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-[#060810]/95 px-6">
-              <div className="w-20 h-20 rounded-3xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-5">
-                <svg className="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-[#060810]/95 px-4 sm:px-6 overflow-y-auto py-4">
+              <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-3 sm:mb-5 flex-shrink-0">
+                <svg className="w-7 h-7 sm:w-10 sm:h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
                 </svg>
               </div>
 
-              <h3 className="text-white font-extrabold text-base mb-1">{errInfo.title}</h3>
-              <p className="text-white/40 text-xs text-center max-w-xs leading-relaxed mb-5">{errInfo.desc}</p>
+              <h3 className="text-white font-extrabold text-sm sm:text-base mb-1">{errInfo.title}</h3>
+              <p className="text-white/40 text-[11px] sm:text-xs text-center max-w-xs leading-relaxed mb-3 sm:mb-5">{errInfo.desc}</p>
 
               {/* Retry tip card */}
-              <div className="w-full max-w-sm bg-amber-500/10 border border-amber-500/25 rounded-2xl p-4 mb-5 text-left">
-                <div className="flex items-start gap-3">
-                  <span className="text-xl flex-shrink-0 mt-0.5">💡</span>
+              <div className="w-full max-w-sm bg-amber-500/10 border border-amber-500/25 rounded-xl sm:rounded-2xl p-3 sm:p-4 mb-3 sm:mb-5 text-left">
+                <div className="flex items-start gap-2.5">
+                  <span className="text-base sm:text-xl flex-shrink-0 mt-0.5">💡</span>
                   <div>
-                    <p className="text-amber-300 font-bold text-xs mb-1">Tip: Retry 2–3 times</p>
-                    <p className="text-white/45 text-[11px] leading-relaxed">
-                      Most videos load successfully on the 2nd or 3rd retry due to temporary server throttling. If it still fails, contact us on Telegram.
+                    <p className="text-amber-300 font-bold text-[11px] sm:text-xs mb-0.5 sm:mb-1">Tip: Retry 2–3 times</p>
+                    <p className="text-white/45 text-[10px] sm:text-[11px] leading-relaxed">
+                      Most videos load successfully on the 2nd or 3rd retry. If it still fails, contact us on Telegram.
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-center">
                 <button
                   onClick={(e) => { e.stopPropagation(); setRetryCount(c => c + 1); loadVideo(); }}
-                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2.5 rounded-xl font-bold text-sm transition-colors"
+                  className="flex items-center gap-1.5 sm:gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-colors"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
                   Retry{retryCount > 0 ? ` (${retryCount})` : ""}
@@ -683,16 +685,16 @@ export default function VideoPlayer({
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="flex items-center gap-2 bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/30 text-sky-300 hover:text-sky-200 px-4 py-2.5 rounded-xl font-bold text-sm transition-all"
+                  className="flex items-center gap-1.5 sm:gap-2 bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/30 text-sky-300 hover:text-sky-200 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all"
                 >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248l-2.012 9.47c-.148.668-.54.83-1.093.516l-3.017-2.222-1.457 1.4c-.16.16-.296.296-.607.296l.215-3.06 5.56-5.016c.242-.215-.053-.334-.374-.12L7.084 14.43l-2.95-.923c-.641-.2-.655-.64.134-.948l11.52-4.44c.534-.196 1.002.13.774.13z"/>
                   </svg>
                   Contact
                 </a>
                 <button
                   onClick={(e) => { e.stopPropagation(); onClose(); }}
-                  className="bg-white/8 hover:bg-white/15 text-white/50 hover:text-white px-4 py-2.5 rounded-xl font-bold text-sm transition-colors"
+                  className="bg-white/8 hover:bg-white/15 text-white/50 hover:text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-colors"
                 >Back</button>
               </div>
             </div>
@@ -721,43 +723,44 @@ export default function VideoPlayer({
               onClick={(e) => e.stopPropagation()}
             >
               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/10 pointer-events-none" />
-              <div className="relative z-10 px-4 pb-4">
+              <div className="relative z-10 px-2.5 sm:px-4 pb-2.5 sm:pb-4">
                 {/* Progress bar */}
-                <div className="relative h-1 hover:h-2 bg-white/20 rounded-full cursor-pointer mb-4 transition-all duration-150 group/bar" onClick={seekTo}>
+                <div className="relative h-1 hover:h-2 bg-white/20 rounded-full cursor-pointer mb-2.5 sm:mb-4 transition-all duration-150 group/bar" onClick={seekTo}>
                   <div className="absolute top-0 left-0 h-full bg-white/25 rounded-full pointer-events-none" style={{ width: `${bufferedPct}%` }} />
                   <div className="absolute top-0 left-0 h-full bg-indigo-500 rounded-full pointer-events-none" style={{ width: `${progressPct}%` }} />
-                  <div className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full -translate-x-1/2 shadow-lg opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none" style={{ left: `${progressPct}%` }} />
+                  <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 sm:w-3.5 sm:h-3.5 bg-white rounded-full -translate-x-1/2 shadow-lg opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none" style={{ left: `${progressPct}%` }} />
                 </div>
 
                 {/* Controls row */}
-                <div className="flex items-center gap-2 sm:gap-3">
+                <div className="flex items-center gap-1.5 sm:gap-3">
                   <button onClick={togglePlay} className="text-white hover:text-indigo-300 transition-colors flex-shrink-0">
-                    {playing ? <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
-                      : <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>}
+                    {playing
+                      ? <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
+                      : <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>}
                   </button>
-                  <button onClick={() => skip(-10)} className="text-white/80 hover:text-white text-xs font-bold bg-white/10 hover:bg-white/20 px-2 py-1 rounded-lg transition-colors flex-shrink-0">-10</button>
-                  <button onClick={() => skip(10)} className="text-white/80 hover:text-white text-xs font-bold bg-white/10 hover:bg-white/20 px-2 py-1 rounded-lg transition-colors flex-shrink-0">+10</button>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button onClick={() => skip(-10)} className="text-white/80 hover:text-white text-[10px] sm:text-xs font-bold bg-white/10 hover:bg-white/20 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg transition-colors flex-shrink-0">-10</button>
+                  <button onClick={() => skip(10)} className="text-white/80 hover:text-white text-[10px] sm:text-xs font-bold bg-white/10 hover:bg-white/20 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg transition-colors flex-shrink-0">+10</button>
+                  <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
                     <button onClick={toggleMute} className="text-white/80 hover:text-white transition-colors">
                       {muted || volume === 0
-                        ? <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" /></svg>
-                        : <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" /></svg>}
+                        ? <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" /></svg>
+                        : <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" /></svg>}
                     </button>
                     <input type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume}
                       onChange={(e) => { const v = parseFloat(e.target.value); if (videoRef.current) { videoRef.current.volume = v; videoRef.current.muted = v === 0; } }}
-                      className="w-16 sm:w-20 accent-indigo-500 cursor-pointer" />
+                      className="w-12 sm:w-20 accent-indigo-500 cursor-pointer hidden xs:block" />
                   </div>
-                  <span className="text-white/60 text-xs flex-shrink-0 font-mono hidden sm:block">{formatTime(currentTime)} / {formatTime(duration)}</span>
+                  <span className="text-white/60 text-[10px] sm:text-xs flex-shrink-0 font-mono hidden sm:block">{formatTime(currentTime)} / {formatTime(duration)}</span>
                   <div className="flex-1" />
                   {/* Speed */}
                   <div className="relative flex-shrink-0">
                     <button onClick={(e) => { e.stopPropagation(); setShowSpeedMenu(!showSpeedMenu); setShowQualityMenu(false); }}
-                      className="text-white/70 hover:text-white text-xs font-bold px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">{playbackRate}x</button>
+                      className="text-white/70 hover:text-white text-[10px] sm:text-xs font-bold px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">{playbackRate}x</button>
                     {showSpeedMenu && (
-                      <div className="absolute bottom-full right-0 mb-2 bg-gray-900/95 backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden min-w-[80px] shadow-2xl z-30">
+                      <div className="absolute bottom-full right-0 mb-2 bg-gray-900/95 backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden min-w-[72px] shadow-2xl z-30">
                         {SPEEDS.map(s => (
                           <button key={s} onClick={(e) => { e.stopPropagation(); setSpeed(s); }}
-                            className={`w-full text-left px-4 py-2 text-sm transition-colors ${playbackRate === s ? "text-indigo-400 bg-indigo-500/10 font-bold" : "text-white/80 hover:bg-white/10 hover:text-white"}`}>{s}x</button>
+                            className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm transition-colors ${playbackRate === s ? "text-indigo-400 bg-indigo-500/10 font-bold" : "text-white/80 hover:bg-white/10 hover:text-white"}`}>{s}x</button>
                         ))}
                       </div>
                     )}
@@ -766,15 +769,15 @@ export default function VideoPlayer({
                   {qualities.length > 0 && (
                     <div className="relative flex-shrink-0">
                       <button onClick={(e) => { e.stopPropagation(); setShowQualityMenu(!showQualityMenu); setShowSpeedMenu(false); }}
-                        className="text-white/70 hover:text-white text-xs font-bold px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">
+                        className="text-white/70 hover:text-white text-[10px] sm:text-xs font-bold px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">
                         {currentQuality === -1 ? "Auto" : `${qualities.find(q => q.index === currentQuality)?.height || ""}p`}</button>
                       {showQualityMenu && (
-                        <div className="absolute bottom-full right-0 mb-2 bg-gray-900/95 backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden min-w-[80px] shadow-2xl z-30">
+                        <div className="absolute bottom-full right-0 mb-2 bg-gray-900/95 backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden min-w-[72px] shadow-2xl z-30">
                           <button onClick={(e) => { e.stopPropagation(); setQuality(-1); }}
-                            className={`w-full text-left px-4 py-2 text-sm transition-colors ${currentQuality === -1 ? "text-indigo-400 bg-indigo-500/10 font-bold" : "text-white/80 hover:bg-white/10 hover:text-white"}`}>Auto</button>
+                            className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm transition-colors ${currentQuality === -1 ? "text-indigo-400 bg-indigo-500/10 font-bold" : "text-white/80 hover:bg-white/10 hover:text-white"}`}>Auto</button>
                           {qualities.map(q => (
                             <button key={q.index} onClick={(e) => { e.stopPropagation(); setQuality(q.index); }}
-                              className={`w-full text-left px-4 py-2 text-sm transition-colors ${currentQuality === q.index ? "text-indigo-400 bg-indigo-500/10 font-bold" : "text-white/80 hover:bg-white/10 hover:text-white"}`}>{q.height}p</button>
+                              className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm transition-colors ${currentQuality === q.index ? "text-indigo-400 bg-indigo-500/10 font-bold" : "text-white/80 hover:bg-white/10 hover:text-white"}`}>{q.height}p</button>
                           ))}
                         </div>
                       )}
@@ -782,8 +785,8 @@ export default function VideoPlayer({
                   )}
                   <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }} className="text-white/80 hover:text-white transition-colors flex-shrink-0">
                     {fullscreen
-                      ? <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" /></svg>
-                      : <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" /></svg>}
+                      ? <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" /></svg>
+                      : <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" /></svg>}
                   </button>
                 </div>
               </div>
@@ -792,7 +795,7 @@ export default function VideoPlayer({
         </div>
 
         {/* Keyboard hint */}
-        <p className="text-center text-white/20 text-xs mt-2.5 hidden sm:block">
+        <p className="text-center text-white/20 text-[11px] mt-2 hidden sm:block">
           Space = play/pause &nbsp;·&nbsp; ← → skip 10s &nbsp;·&nbsp; F = fullscreen &nbsp;·&nbsp; M = mute &nbsp;·&nbsp; Esc = back
         </p>
       </div>
