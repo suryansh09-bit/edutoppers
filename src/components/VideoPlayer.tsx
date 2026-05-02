@@ -239,12 +239,34 @@ export default function VideoPlayer({
   const containerRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rawHlsUrlRef = useRef<string>("");
 
   const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
+  // ─── Parse quality levels from a master m3u8 playlist text ────────────────
+  function parseQualitiesFromM3u8(text: string): QualityLevel[] {
+    const levels: QualityLevel[] = [];
+    const lines = text.split("\n");
+    for (const line of lines) {
+      if (line.startsWith("#EXT-X-STREAM-INF")) {
+        const resMatch = line.match(/RESOLUTION=(\d+)x(\d+)/);
+        const bwMatch = line.match(/BANDWIDTH=(\d+)/);
+        if (resMatch) {
+          const h = parseInt(resMatch[2], 10);
+          const bw = bwMatch ? parseInt(bwMatch[1], 10) : 0;
+          if (!levels.some(l => l.height === h)) {
+            levels.push({ height: h, bitrate: bw, index: levels.length });
+          }
+        }
+      }
+    }
+    return levels.sort((a, b) => b.height - a.height);
+  }
+
   // ─── iOS Native HLS ───────────────────────────────────────────────────────
-  function loadIosNativeHls(video: HTMLVideoElement, src: string) {
+  async function loadIosNativeHls(video: HTMLVideoElement, src: string) {
     setProgress("Loading stream...");
+    rawHlsUrlRef.current = src;
     video.src = src;
     video.load();
     video.addEventListener("loadedmetadata", () => {
@@ -256,16 +278,41 @@ export default function VideoPlayer({
       setError("stream_error");
       setLoading(false);
     }, { once: true });
+
+    // Fetch the master playlist to extract available quality levels for iOS
+    try {
+      const res = await fetch(src);
+      if (res.ok) {
+        const text = await res.text();
+        const lvls = parseQualitiesFromM3u8(text);
+        if (lvls.length > 1) setQualities(lvls);
+      }
+    } catch { /* quality extraction is best-effort */ }
   }
 
-  // ─── Load HLS via hls.js (Android / Desktop) ─────────────────────────────
+  // ─── Load HLS via hls.js (Android / Desktop / iOS 17+) ───────────────────
   async function loadHls(video: HTMLVideoElement, src: string) {
     setProgress("Loading stream...");
+    rawHlsUrlRef.current = src;
 
-    // iOS: always use native HLS
-    if (isIos || video.canPlayType("application/vnd.apple.mpegurl")) {
-      loadIosNativeHls(video, src);
-      return;
+    // iOS: try hls.js first (iOS 17+ supports MSE), fallback to native
+    if (isIos) {
+      const Hls = (await import("hls.js")).default;
+      if (Hls.isSupported()) {
+        // MSE available on this iOS — use hls.js for quality control
+      } else {
+        await loadIosNativeHls(video, src);
+        return;
+      }
+    }
+
+    // Non-iOS Safari with native HLS but no MSE
+    if (!isIos && video.canPlayType("application/vnd.apple.mpegurl")) {
+      const Hls = (await import("hls.js")).default;
+      if (!Hls.isSupported()) {
+        await loadIosNativeHls(video, src);
+        return;
+      }
     }
 
     const Hls = (await import("hls.js")).default;
@@ -293,8 +340,10 @@ export default function VideoPlayer({
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        const seen = new Set<number>();
         const lvls: QualityLevel[] = hls.levels
           .map((l, i) => ({ height: l.height || 0, bitrate: l.bitrate || 0, index: i }))
+          .filter(l => { if (seen.has(l.height)) return false; seen.add(l.height); return true; })
           .sort((a, b) => b.height - a.height);
         setQualities(lvls);
         video.play().catch(() => {});
@@ -603,13 +652,51 @@ export default function VideoPlayer({
     setPlaybackRate(rate); setShowSpeedMenu(false);
   }
   function setQuality(index: number) {
-    if (hlsRef.current) { hlsRef.current.currentLevel = index; setCurrentQuality(index); setShowQualityMenu(false); return; }
+    // hls.js quality switching
+    if (hlsRef.current) {
+      hlsRef.current.currentLevel = index;
+      setCurrentQuality(index);
+      setShowQualityMenu(false);
+      return;
+    }
+    // Shaka (DRM/DASH) quality switching
     if (shakaRef.current) {
-      if (index === -1) { shakaRef.current.configure({ abr: { enabled: true } }); }
-      else {
+      if (index === -1) {
+        shakaRef.current.configure({ abr: { enabled: true } });
+      } else {
         const tracks = shakaRef.current.getVariantTracks();
-        if (tracks[index]) { shakaRef.current.selectVariantTrack(tracks[index], true); shakaRef.current.configure({ abr: { enabled: false } }); }
+        if (tracks[index]) {
+          shakaRef.current.selectVariantTrack(tracks[index], true);
+          shakaRef.current.configure({ abr: { enabled: false } });
+        }
       }
+      setCurrentQuality(index);
+      setShowQualityMenu(false);
+      return;
+    }
+    // iOS native HLS: reload with proxy-filtered quality
+    const video = videoRef.current;
+    if (video && rawHlsUrlRef.current) {
+      const savedTime = video.currentTime;
+      const wasPlaying = !video.paused;
+      let newSrc = rawHlsUrlRef.current;
+      if (index !== -1 && qualities[index]) {
+        const maxH = qualities[index].height;
+        // If src goes through our proxy, add maxHeight param
+        if (newSrc.startsWith("/api/hls-proxy")) {
+          const u = new URL(newSrc, window.location.origin);
+          u.searchParams.set("maxHeight", String(maxH));
+          newSrc = u.pathname + u.search;
+        } else {
+          newSrc = `/api/hls-proxy?url=${encodeURIComponent(newSrc)}&maxHeight=${maxH}`;
+        }
+      }
+      video.src = newSrc;
+      video.load();
+      video.addEventListener("loadedmetadata", () => {
+        video.currentTime = savedTime;
+        if (wasPlaying) video.play().catch(() => {});
+      }, { once: true });
       setCurrentQuality(index);
     }
     setShowQualityMenu(false);
@@ -811,8 +898,8 @@ export default function VideoPlayer({
                       </div>
                     )}
                   </div>
-                  {/* Quality — hidden on iOS (native HLS doesn't expose levels) */}
-                  {qualities.length > 0 && !isIos && (
+                  {/* Quality selector */}
+                  {qualities.length > 0 && (
                     <div className="relative flex-shrink-0">
                       <button onClick={(e) => { e.stopPropagation(); setShowQualityMenu(!showQualityMenu); setShowSpeedMenu(false); }}
                         className="text-white/70 hover:text-white text-[10px] sm:text-xs font-bold px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">

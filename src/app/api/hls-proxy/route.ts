@@ -28,6 +28,7 @@ const PW_HEADERS = {
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const encodedUrl = searchParams.get("url");
+  const maxHeight = parseInt(searchParams.get("maxHeight") || "0", 10) || 0;
 
   if (!encodedUrl) {
     return new NextResponse("Missing url param", { status: 400 });
@@ -98,8 +99,8 @@ export async function GET(request: NextRequest) {
       urlObj.origin +
       urlObj.pathname.substring(0, urlObj.pathname.lastIndexOf("/") + 1);
 
-    // Rewrite the playlist content
-    const rewritten = rewriteM3u8(playlistText, basePath, authQuery, urlObj.origin);
+    // Rewrite the playlist content (optionally filter by maxHeight)
+    const rewritten = rewriteM3u8(playlistText, basePath, authQuery, urlObj.origin, maxHeight);
 
     return new NextResponse(rewritten, {
       status: 200,
@@ -143,14 +144,31 @@ function rewriteM3u8(
   playlist: string,
   basePath: string,
   authQuery: string,
-  origin: string
+  origin: string,
+  maxHeight = 0
 ): string {
   const lines = playlist.split("\n");
   const result: string[] = [];
+  let skipNextUri = false;
 
   for (let i = 0; i < lines.length; i++) {
     const rawLine = lines[i];
     const line = rawLine.trimEnd();
+
+    // Quality filtering for master playlists: skip variants above maxHeight
+    if (maxHeight > 0 && line.startsWith("#EXT-X-STREAM-INF")) {
+      const resMatch = line.match(/RESOLUTION=(\d+)x(\d+)/);
+      if (resMatch) {
+        const h = parseInt(resMatch[2], 10);
+        if (h > maxHeight) { skipNextUri = true; continue; }
+      }
+    }
+
+    // Skip the URI line that follows a filtered-out EXT-X-STREAM-INF
+    if (skipNextUri && !line.startsWith("#")) {
+      skipNextUri = false;
+      continue;
+    }
 
     // EXT-X-KEY URI rewrite (encryption key files)
     if (line.startsWith("#EXT-X-KEY") && line.includes('URI="')) {
