@@ -3,7 +3,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import LiveVideoPlayer from "./LiveVideoPlayer";
 import type { Subject, Teacher, BatchDetail } from "@/lib/types";
 
 interface BatchTabsProps {
@@ -220,7 +219,23 @@ function LiveClasses({ batchId }: { batchId: string }) {
   const [classes, setClasses] = useState<LiveClassItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [playingClass, setPlayingClass] = useState<LiveClassItem | null>(null);
+
+  function openLiveClassInNewTab(cls: LiveClassItem) {
+    const title = encodeURIComponent(cls.topic || cls.videoDetails?.name || cls.name || "Live Class");
+    const isLive = getClassStatus(cls).label === "LIVE" ? "1" : "0";
+    const directUrl = isLive === "1" ? (cls.url || cls.ytStreamUrl || "") : "";
+    const params = new URLSearchParams({
+      videoId: cls._id,
+      batchId,
+      subjectId: cls.subjectId?._id || "",
+      subjectSlug: cls.subjectId?.slug || "",
+      title,
+      isLive,
+      ...(directUrl ? { directUrl } : {}),
+      ...(cls.urlType ? { urlType: cls.urlType } : {}),
+    });
+    window.open(`/live?${params.toString()}`, "_blank");
+  }
 
   const fetchLiveClasses = useCallback(async () => {
     setLoading(true);
@@ -296,24 +311,6 @@ function LiveClasses({ batchId }: { batchId: string }) {
 
   return (
     <>
-      {playingClass && (
-        <LiveVideoPlayer
-          videoId={playingClass._id}
-          batchId={batchId}
-          subjectId={playingClass.subjectId?._id || ""}
-          subjectSlug={playingClass.subjectId?.slug || ""}
-          title={playingClass.topic || playingClass.name || playingClass.videoDetails?.name || "Live Class"}
-          isLive={getClassStatus(playingClass).label === "LIVE"}
-          directUrl={
-            getClassStatus(playingClass).label === "LIVE"
-              ? (playingClass.url || playingClass.ytStreamUrl || undefined)
-              : undefined
-          }
-          urlType={playingClass.urlType || undefined}
-          onClose={() => setPlayingClass(null)}
-        />
-      )}
-
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 animate-fade-up">
         {classes.map((cls, i) => {
           const title = cls.topic || cls.videoDetails?.name || "Live Class";
@@ -333,7 +330,7 @@ function LiveClasses({ batchId }: { batchId: string }) {
               key={cls._id}
               className={`card rounded-2xl overflow-hidden flex flex-col animate-fade-up ${isPlayable ? "cursor-pointer" : ""}`}
               style={{ animationDelay: `${i * 30}ms` }}
-              onClick={() => { if (isPlayable) setPlayingClass(cls); }}
+              onClick={() => { if (isPlayable) openLiveClassInNewTab(cls); }}
             >
               {/* Thumbnail */}
               <div className="relative aspect-video overflow-hidden">

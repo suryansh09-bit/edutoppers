@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
-import VideoPlayer from "./VideoPlayer";
 
 interface AttachmentItem {
   _id: string;
@@ -80,8 +79,14 @@ export default function TopicContent({
   const [content, setContent] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [playingItem, setPlayingItem] = useState<ContentItem | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  function openVideoInNewTab(item: ContentItem) {
+    const childId = item.videoDetails?.findKey || item._id;
+    const title = encodeURIComponent(item.videoDetails?.name || item.topic || "");
+    const url = `/watch?batchId=${batchId}&subjectId=${subjectId}&childId=${childId}&subjectSlug=${encodeURIComponent(subjectSlug)}&title=${title}`;
+    window.open(url, "_blank");
+  }
 
   const contentTypeMap: Record<TabKey, string> = { lectures: "videos", notes: "notes", dpp: "dpp" };
 
@@ -171,17 +176,6 @@ export default function TopicContent({
 
   return (
     <div>
-      {playingItem && (
-        <VideoPlayer
-          batchId={batchId}
-          subjectId={subjectId}
-          childId={playingItem.videoDetails?.findKey || playingItem._id}
-          subjectSlug={subjectSlug}
-          title={playingItem.videoDetails?.name || playingItem.topic || topicName}
-          onClose={() => setPlayingItem(null)}
-        />
-      )}
-
       {/* Sub-tabs */}
       <div className="flex gap-1.5 mb-7 bg-slate-100/80 rounded-2xl p-1.5 overflow-x-auto">
         {tabs.map((tab) => (
@@ -247,7 +241,7 @@ export default function TopicContent({
                 key={item._id}
                 className="card rounded-2xl overflow-hidden cursor-pointer group animate-fade-up"
                 style={{ animationDelay: `${i * 30}ms` }}
-                onClick={() => setPlayingItem(item)}
+                onClick={() => openVideoInNewTab(item)}
               >
                 {/* Thumbnail */}
                 <div className="relative aspect-video bg-indigo-50 overflow-hidden">
