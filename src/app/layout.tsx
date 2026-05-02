@@ -6,22 +6,24 @@ import SiteGuard from "@/components/SiteGuard";
 
 export const metadata: Metadata = {
   title: {
-    default: "EduToppers — India's Best Free Learning Platform",
+    default: "EduToppers — Free Physics Wallah Batches & Live Classes",
     template: "%s | EduToppers",
   },
   description:
-    "EduToppers is India's leading free online education platform. Access top-quality video lectures, notes, DPP and live classes for JEE, NEET, Class 10 & 12 — absolutely free. Learn from the best teachers and crack your exams with confidence.",
+    "Physics Wallah (PW) is an Indian edtech platform that provides accessible & comprehensive learning experiences to students from Class 6th to postgraduate level. EduToppers provides free PW batches with live classes and high quality lectures for every student.",
   keywords: [
+    "Physics Wallah free batches",
+    "PW free courses",
+    "Physics Wallah live classes",
+    "free PW batches",
+    "Physics Wallah Class 6 to postgraduate",
     "EduToppers",
-    "free online classes",
-    "JEE preparation",
-    "NEET preparation",
-    "Class 10 online classes",
-    "Class 12 online classes",
-    "free video lectures",
-    "online study platform India",
-    "PW batches free",
-    "free DPP notes",
+    "free JEE NEET classes",
+    "PW lectures free",
+    "Physics Wallah edtech India",
+    "free online education India",
+    "PW notes DPP free",
+    "high quality free lectures",
   ],
   authors: [{ name: "EduToppers Team" }],
   creator: "EduToppers",
@@ -38,16 +40,16 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "EduToppers",
-    title: "EduToppers — India's Best Free Learning Platform",
+    title: "EduToppers — Free Physics Wallah Batches & Live Classes",
     description:
-      "Access top-quality video lectures, notes, DPP and live classes for JEE, NEET, Class 10 & 12 — absolutely free.",
+      "Physics Wallah (PW) is an Indian edtech platform providing comprehensive learning from Class 6th to postgraduate level. Get free PW batches with live classes and high quality lectures.",
     images: [{ url: "/edutoppers-logo.png", width: 512, height: 512, alt: "EduToppers Logo" }],
   },
   twitter: {
     card: "summary",
-    title: "EduToppers — India's Best Free Learning Platform",
+    title: "EduToppers — Free Physics Wallah Batches & Live Classes",
     description:
-      "Access top-quality video lectures, notes, DPP and live classes for JEE, NEET — absolutely free.",
+      "Physics Wallah (PW) is an Indian edtech platform. EduToppers provides free PW batches with live classes and high quality lectures for every student.",
     images: ["/edutoppers-logo.png"],
   },
   robots: { index: false, follow: false },
