@@ -585,6 +585,20 @@ export default function LiveVideoPlayer({
     return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
 
+  // Auto-enter fullscreen when opened as a full page; exit on unmount
+  useEffect(() => {
+    if (!fullPage) return;
+    const el = containerRef.current;
+    if (!el) return;
+    const elExt = el as HTMLDivElement & { webkitRequestFullscreen?: () => Promise<void> };
+    const req = el.requestFullscreen?.() ?? elExt.webkitRequestFullscreen?.();
+    req?.catch(() => {});
+    return () => {
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fullPage]);
+
   const resetControlsTimer = () => {
     setShowControls(true);
     if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
@@ -614,7 +628,7 @@ export default function LiveVideoPlayer({
   }
 
   function toggleFullscreen() {
-    const el = wrapperRef.current;
+    const el = fullPage ? (containerRef.current ?? wrapperRef.current) : wrapperRef.current;
     if (!el) return;
     if (!document.fullscreenElement) el.requestFullscreen().catch(() => {});
     else document.exitFullscreen().catch(() => {});
