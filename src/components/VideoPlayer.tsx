@@ -266,19 +266,73 @@ export default function VideoPlayer({
   }
 
   // ─── iOS Native HLS ───────────────────────────────────────────────────────
-  async function loadIosNativeHls(video: HTMLVideoElement, src: string) {
+  async function loadIosNativeHls(video: HTMLVideoElement, src: string, fallbackSrc?: string) {
     setProgress("Loading stream...");
     rawHlsUrlRef.current = src;
     video.src = src;
     video.load();
+
+    let loaded = false;
+    const loadTimeout = setTimeout(() => {
+      if (!loaded) {
+        if (fallbackSrc && fallbackSrc !== src) {
+          rawHlsUrlRef.current = fallbackSrc;
+          video.src = fallbackSrc;
+          video.load();
+          video.addEventListener("loadedmetadata", () => {
+            loaded = true;
+            video.play().catch(() => {});
+            setLoading(false);
+            setPlaying(true);
+          }, { once: true });
+        } else {
+          setError("stream_error");
+          setLoading(false);
+        }
+      }
+    }, 15000);
+
     video.addEventListener("loadedmetadata", () => {
+      loaded = true;
+      clearTimeout(loadTimeout);
       video.play().catch(() => {});
       setLoading(false);
       setPlaying(true);
     }, { once: true });
     video.addEventListener("error", () => {
-      setError("stream_error");
-      setLoading(false);
+      if (loaded) return;
+      clearTimeout(loadTimeout);
+      if (fallbackSrc && fallbackSrc !== src) {
+        rawHlsUrlRef.current = fallbackSrc;
+        video.src = fallbackSrc;
+        video.load();
+        video.addEventListener("loadedmetadata", () => {
+          loaded = true;
+          video.play().catch(() => {});
+          setLoading(false);
+          setPlaying(true);
+        }, { once: true });
+        video.addEventListener("error", () => {
+          setError("stream_error");
+          setLoading(false);
+        }, { once: true });
+      } else {
+        setError("stream_error");
+        setLoading(false);
+      }
+    }, { once: true });
+
+    // Handle stalled/black screen: if video stalls for too long, retry
+    video.addEventListener("stalled", () => {
+      if (!loaded && fallbackSrc && fallbackSrc !== src) {
+        setTimeout(() => {
+          if (!loaded && video.readyState < 2) {
+            rawHlsUrlRef.current = fallbackSrc;
+            video.src = fallbackSrc;
+            video.load();
+          }
+        }, 8000);
+      }
     }, { once: true });
 
     // Fetch the master playlist to extract available quality levels for iOS
@@ -364,10 +418,17 @@ export default function VideoPlayer({
       hls.on(Hls.Events.LEVEL_LOADED, () => { extractHlsQualities(); });
 
       let mediaRecoveryAttempted = false;
+      let networkRetries = 0;
       hls.on(Hls.Events.ERROR, (_event: unknown, errData: { fatal?: boolean; type?: string }) => {
         if (!errData.fatal) return;
         if (errData.type === "networkError") {
-          hls.startLoad();
+          networkRetries++;
+          if (networkRetries <= 3) {
+            hls.startLoad();
+          } else {
+            setError("network_error");
+            setLoading(false);
+          }
         } else if (errData.type === "mediaError") {
           if (!mediaRecoveryAttempted) {
             mediaRecoveryAttempted = true;
@@ -438,11 +499,19 @@ export default function VideoPlayer({
       const video = videoRef.current;
       if (!video) return;
 
-      // iOS: use proxied HLS URL so sub-playlists retain auth tokens; fall back to raw
+      // iOS: prefer hls.js (iOS 17+ with MSE), fallback to native HLS
       if (isIos) {
         const hlsSrc = data.hlsUrl || data.rawHlsUrl || data.videoUrl || "";
+        const rawSrc = data.rawHlsUrl || data.videoUrl || "";
         if (hlsSrc) {
-          loadIosNativeHls(video, hlsSrc);
+          try {
+            const Hls = (await import("hls.js")).default;
+            if (Hls.isSupported()) {
+              await loadHls(video, hlsSrc);
+              return;
+            }
+          } catch { /* hls.js not available, use native */ }
+          loadIosNativeHls(video, hlsSrc, rawSrc);
         } else {
           setError("not_found");
           setLoading(false);
@@ -830,7 +899,7 @@ export default function VideoPlayer({
                   Retry{retryCount > 0 ? ` (${retryCount})` : ""}
                 </button>
                 <a
-                  href="https://t.me/urs_boy09"
+                  href="https://t.me/pdabluquery_bot"
                   target="_blank" rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
                   className="flex items-center gap-1.5 bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/30 text-sky-300 px-3 py-2 rounded-xl font-bold text-xs transition-all"
