@@ -6,19 +6,22 @@ import SiteGuard from "@/components/SiteGuard";
 
 export const metadata: Metadata = {
   title: {
-    default: "EduToppers — Free PW Learning Platform",
+    default: "EduToppers — India's Best Free Learning Platform",
     template: "%s | EduToppers",
   },
   description:
-    "EduToppers gives every student free access to premium Physics Wallah (PW) batches — JEE, NEET, Class 10/12 and more. Study smarter, score higher.",
+    "EduToppers is India's leading free online education platform. Access top-quality video lectures, notes, DPP and live classes for JEE, NEET, Class 10 & 12 — absolutely free. Learn from the best teachers and crack your exams with confidence.",
   keywords: [
     "EduToppers",
-    "PW free batches",
-    "Physics Wallah free",
-    "JEE free study",
-    "NEET free study",
-    "free learning platform",
-    "PW batches",
+    "free online classes",
+    "JEE preparation",
+    "NEET preparation",
+    "Class 10 online classes",
+    "Class 12 online classes",
+    "free video lectures",
+    "online study platform India",
+    "PW batches free",
+    "free DPP notes",
   ],
   authors: [{ name: "EduToppers Team" }],
   creator: "EduToppers",
@@ -35,15 +38,16 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "EduToppers",
-    title: "EduToppers — Free PW Learning Platform",
+    title: "EduToppers — India's Best Free Learning Platform",
     description:
-      "Premium PW batches, free for every student. Unlock quality education today.",
+      "Access top-quality video lectures, notes, DPP and live classes for JEE, NEET, Class 10 & 12 — absolutely free.",
     images: [{ url: "/edutoppers-logo.png", width: 512, height: 512, alt: "EduToppers Logo" }],
   },
   twitter: {
     card: "summary",
-    title: "EduToppers — Free PW Learning Platform",
-    description: "Premium PW batches, free for every student.",
+    title: "EduToppers — India's Best Free Learning Platform",
+    description:
+      "Access top-quality video lectures, notes, DPP and live classes for JEE, NEET — absolutely free.",
     images: ["/edutoppers-logo.png"],
   },
   robots: { index: false, follow: false },

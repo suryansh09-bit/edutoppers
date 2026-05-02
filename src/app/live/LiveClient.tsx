@@ -16,15 +16,20 @@ export default function LiveClient() {
   const directUrl = params.get("directUrl") || undefined;
   const urlType = params.get("urlType") || undefined;
 
+  function handleClose() {
+    try { window.close(); } catch {}
+    setTimeout(() => { router.back(); }, 150);
+  }
+
   if (!videoId || !batchId) {
     return (
       <div className="fixed inset-0 flex items-center justify-center"
         style={{ background: "rgba(2,4,12,0.98)" }}>
         <div className="text-center">
           <p className="text-white/50 mb-4">Invalid class link.</p>
-          <button onClick={() => router.back()}
+          <button onClick={handleClose}
             className="px-4 py-2 bg-red-600 rounded-xl text-white text-sm font-bold">
-            Go Back
+            Close Tab
           </button>
         </div>
       </div>
@@ -41,7 +46,7 @@ export default function LiveClient() {
       isLive={isLive}
       directUrl={directUrl}
       urlType={urlType}
-      onClose={() => router.back()}
+      onClose={handleClose}
       fullPage
     />
   );

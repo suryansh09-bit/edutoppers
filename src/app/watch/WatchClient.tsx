@@ -19,13 +19,20 @@ export default function WatchClient() {
         style={{ background: "rgba(2,4,12,0.98)" }}>
         <div className="text-center">
           <p className="text-white/50 mb-4">Invalid video link.</p>
-          <button onClick={() => router.back()}
+          <button onClick={() => { try { window.close(); } catch {} setTimeout(() => router.back(), 150); }}
             className="px-4 py-2 bg-indigo-600 rounded-xl text-white text-sm font-bold">
-            Go Back
+            Close Tab
           </button>
         </div>
       </div>
     );
+  }
+
+  function handleClose() {
+    // Tab was opened via window.open — close it; fallback to history if that fails
+    try { window.close(); } catch {}
+    // If window.close() didn't work (e.g. same-origin restriction), go back
+    setTimeout(() => { router.back(); }, 150);
   }
 
   return (
@@ -35,7 +42,7 @@ export default function WatchClient() {
       childId={childId}
       subjectSlug={subjectSlug}
       title={title}
-      onClose={() => router.back()}
+      onClose={handleClose}
       fullPage
     />
   );
