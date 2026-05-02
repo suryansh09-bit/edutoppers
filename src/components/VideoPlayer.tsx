@@ -31,8 +31,6 @@ interface QualityLevel {
   index: number;
 }
 
-type DeviceType = "ios" | "android" | null;
-
 // ── Cloudflare Turnstile ────────────────────────────────────────────────────
 const TURNSTILE_SITE_KEY = "0x4AAAAAADHS5DlouHNP_hXs";
 
@@ -47,47 +45,14 @@ declare global {
   }
 }
 
-// ── Device Selector ─────────────────────────────────────────────────────────
-function DeviceSelector({ onSelect }: { onSelect: (device: DeviceType) => void }) {
-  return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center px-6 z-40"
-      style={{ background: "linear-gradient(135deg, #0d0f1e 0%, #111827 100%)" }}>
-      <div className="w-12 h-12 rounded-2xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center mb-4">
-        <svg className="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-        </svg>
-      </div>
-      <h3 className="text-white font-extrabold text-base mb-1">Select Your Device</h3>
-      <p className="text-white/40 text-xs text-center mb-6 max-w-[220px]">Choose your device type for the best playback experience</p>
-      <div className="flex gap-3 w-full max-w-xs">
-        {/* iOS */}
-        <button
-          onClick={() => onSelect("ios")}
-          className="flex-1 flex flex-col items-center gap-2 py-4 px-3 rounded-2xl bg-white/5 hover:bg-indigo-500/20 border border-white/10 hover:border-indigo-500/40 transition-all group"
-        >
-          <svg className="w-8 h-8 text-white/70 group-hover:text-indigo-300 transition-colors" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
-          </svg>
-          <span className="text-white/80 group-hover:text-white font-bold text-sm transition-colors">iPhone / iPad</span>
-          <span className="text-white/30 text-[10px]">iOS / iPadOS</span>
-        </button>
-        {/* Android */}
-        <button
-          onClick={() => onSelect("android")}
-          className="flex-1 flex flex-col items-center gap-2 py-4 px-3 rounded-2xl bg-white/5 hover:bg-emerald-500/20 border border-white/10 hover:border-emerald-500/40 transition-all group"
-        >
-          <svg className="w-8 h-8 text-white/70 group-hover:text-emerald-300 transition-colors" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M17.6 9.48l1.84-3.18c.16-.31.04-.69-.26-.85-.29-.15-.65-.06-.83.22l-1.88 3.24C14.9 8.13 13.5 7.75 12 7.75s-2.9.38-4.47 1.16L5.65 5.67c-.19-.28-.54-.37-.83-.22-.29.16-.42.54-.26.85L6.4 9.48C3.3 11.25 1.28 14.44 1 18h22c-.28-3.56-2.3-6.75-5.4-8.52zM7 15.25c-.69 0-1.25-.56-1.25-1.25s.56-1.25 1.25-1.25 1.25.56 1.25 1.25-.56 1.25-1.25 1.25zm10 0c-.69 0-1.25-.56-1.25-1.25s.56-1.25 1.25-1.25 1.25.56 1.25 1.25-.56 1.25-1.25 1.25z"/>
-          </svg>
-          <span className="text-white/80 group-hover:text-white font-bold text-sm transition-colors">Android</span>
-          <span className="text-white/30 text-[10px]">Android Phone / Tablet</span>
-        </button>
-      </div>
-      <p className="text-white/20 text-[10px] mt-4">You can change this anytime by reloading</p>
-    </div>
-  );
+/** Detect iOS/iPadOS via userAgent */
+function isIosDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 }
 
+// ── Turnstile Gate ───────────────────────────────────────────────────────────
 function TurnstileGate({ onVerified }: { onVerified: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
@@ -243,8 +208,6 @@ export default function VideoPlayer({
   onClose,
   fullPage = false,
 }: VideoPlayerProps) {
-  // Step 1: device selection, Step 2: turnstile verification, Step 3: play
-  const [device, setDevice] = useState<DeviceType>(null);
   const [verified, setVerified] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -266,6 +229,8 @@ export default function VideoPlayer({
   const [qualities, setQualities] = useState<QualityLevel[]>([]);
   const [currentQuality, setCurrentQuality] = useState(-1);
 
+  const isIos = isIosDevice();
+
   const videoRef = useRef<HTMLVideoElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const shakaRef = useRef<any>(null);
@@ -280,7 +245,6 @@ export default function VideoPlayer({
   // ─── iOS Native HLS ───────────────────────────────────────────────────────
   function loadIosNativeHls(video: HTMLVideoElement, src: string) {
     setProgress("Loading stream...");
-    // iOS Safari supports HLS natively — set src directly
     video.src = src;
     video.load();
     video.addEventListener("loadedmetadata", () => {
@@ -294,12 +258,12 @@ export default function VideoPlayer({
     }, { once: true });
   }
 
-  // ─── Load HLS (Android / Desktop via hls.js) ─────────────────────────────
+  // ─── Load HLS via hls.js (Android / Desktop) ─────────────────────────────
   async function loadHls(video: HTMLVideoElement, src: string) {
     setProgress("Loading stream...");
 
-    // iOS: use native HLS
-    if (device === "ios" || (!device && video.canPlayType("application/vnd.apple.mpegurl"))) {
+    // iOS: always use native HLS
+    if (isIos || video.canPlayType("application/vnd.apple.mpegurl")) {
       loadIosNativeHls(video, src);
       return;
     }
@@ -339,7 +303,7 @@ export default function VideoPlayer({
       });
 
       let mediaRecoveryAttempted = false;
-      hls.on(Hls.Events.ERROR, (_event: unknown, errData: { fatal?: boolean; type?: string; details?: string }) => {
+      hls.on(Hls.Events.ERROR, (_event: unknown, errData: { fatal?: boolean; type?: string }) => {
         if (!errData.fatal) return;
         if (errData.type === "networkError") {
           hls.startLoad();
@@ -356,9 +320,6 @@ export default function VideoPlayer({
           setLoading(false);
         }
       });
-    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      // Fallback native HLS
-      loadIosNativeHls(video, src);
     } else {
       setError("browser_unsupported");
       setLoading(false);
@@ -400,9 +361,9 @@ export default function VideoPlayer({
       const video = videoRef.current;
       if (!video) return;
 
-      // iOS: skip DRM (Shaka) entirely, use raw (unproxied) HLS — iOS Safari handles auth natively
-      if (device === "ios") {
-        const hlsSrc = data.rawHlsUrl || data.videoUrl || (data.mpdUrl ? data.mpdUrl.replace(/\.mpd(\?|$)/, ".m3u8$1") : "");
+      // iOS: skip DRM (Shaka) entirely, use raw HLS — iOS Safari handles auth natively
+      if (isIos) {
+        const hlsSrc = data.rawHlsUrl || data.videoUrl || "";
         if (hlsSrc) {
           loadIosNativeHls(video, hlsSrc);
         } else {
@@ -506,7 +467,7 @@ export default function VideoPlayer({
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [batchId, subjectId, childId, subjectSlug, device]);
+  }, [batchId, subjectId, childId, subjectSlug]);
 
   useEffect(() => {
     if (!verified) return;
@@ -569,7 +530,7 @@ export default function VideoPlayer({
     return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
 
-  // Auto-enter fullscreen when opened as a full page; exit on unmount
+  // Auto-enter fullscreen when opened as full page
   useEffect(() => {
     if (!fullPage) return;
     const el = containerRef.current;
@@ -674,19 +635,6 @@ export default function VideoPlayer({
           <span className="hidden sm:inline">Back</span>
         </button>
         <h2 className="text-white font-bold text-xs sm:text-[15px] line-clamp-1 flex-1 opacity-90">{title}</h2>
-        {/* Device badge */}
-        {device && (
-          <button
-            onClick={() => { setDevice(null); setVerified(false); setLoading(true); setError(""); }}
-            className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg bg-white/8 border border-white/10 text-white/40 hover:text-white/70 text-[10px] transition-colors"
-            title="Change device"
-          >
-            {device === "ios" ? "iOS" : "Android"}
-            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        )}
         <button
           onClick={onClose}
           className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-white/10 hover:bg-red-500/80 text-white/60 hover:text-white flex items-center justify-center transition-all flex-shrink-0 border border-white/10"
@@ -705,24 +653,15 @@ export default function VideoPlayer({
           onMouseMove={resetControlsTimer}
           onMouseEnter={resetControlsTimer}
           onTouchStart={resetControlsTimer}
-          onClick={() => { if (device && verified && !youtubeUrl && !loading && !error) { togglePlay(); resetControlsTimer(); } }}
+          onClick={() => { if (verified && !youtubeUrl && !loading && !error) { togglePlay(); resetControlsTimer(); } }}
         >
-
-          {/* ── Step 1: Device Selector ── */}
-          {!device && (
-            <DeviceSelector onSelect={(d) => setDevice(d)} />
-          )}
-
-          {/* ── Step 2: Verification gate ── */}
-          {device && !verified && (
-            <div className="absolute inset-0 z-30 flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, #0d0f1e 0%, #111827 100%)" }}>
-              <TurnstileGate onVerified={() => setVerified(true)} />
-            </div>
+          {/* ── Verification gate ── */}
+          {!verified && (
+            <TurnstileGate onVerified={() => setVerified(true)} />
           )}
 
           {/* ── Loading ── */}
-          {device && verified && loading && (
+          {verified && loading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black/70">
               <div className="relative mb-3 sm:mb-4">
                 <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full border-4 border-white/10 border-t-indigo-500 animate-spin" />
@@ -734,58 +673,57 @@ export default function VideoPlayer({
           )}
 
           {/* ── Error state ── */}
-          {device && verified && error && !loading && (
+          {verified && error && !loading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-[#060810]/95 px-4 sm:px-6 overflow-y-auto py-4">
-              <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-3 sm:mb-5 flex-shrink-0">
-                <svg className="w-7 h-7 sm:w-10 sm:h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-3 flex-shrink-0">
+                <svg className="w-6 h-6 sm:w-8 sm:h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
                 </svg>
               </div>
-              <h3 className="text-white font-extrabold text-sm sm:text-base mb-1">{errInfo.title}</h3>
-              <p className="text-white/40 text-[11px] sm:text-xs text-center max-w-xs leading-relaxed mb-3 sm:mb-5">{errInfo.desc}</p>
-              <div className="w-full max-w-sm bg-amber-500/10 border border-amber-500/25 rounded-xl sm:rounded-2xl p-3 sm:p-4 mb-3 sm:mb-5 text-left">
-                <div className="flex items-start gap-2.5">
-                  <span className="text-base sm:text-xl flex-shrink-0 mt-0.5">💡</span>
+              <h3 className="text-white font-extrabold text-sm mb-1">{errInfo.title}</h3>
+              <p className="text-white/40 text-[11px] text-center max-w-xs leading-relaxed mb-3">{errInfo.desc}</p>
+              <div className="w-full max-w-xs bg-amber-500/10 border border-amber-500/25 rounded-xl p-3 mb-3 text-left">
+                <div className="flex items-start gap-2">
+                  <span className="text-sm flex-shrink-0">💡</span>
                   <div>
-                    <p className="text-amber-300 font-bold text-[11px] sm:text-xs mb-0.5 sm:mb-1">Tip: Retry 2–3 times</p>
-                    <p className="text-white/45 text-[10px] sm:text-[11px] leading-relaxed">
-                      Most videos load successfully on the 2nd or 3rd retry. If it still fails, contact us on Telegram.
+                    <p className="text-amber-300 font-bold text-[11px] mb-0.5">Tip: Retry 2–3 times</p>
+                    <p className="text-white/45 text-[10px] leading-relaxed">
+                      Most videos load on 2nd or 3rd retry. If it still fails, contact us on Telegram.
                     </p>
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-center">
+              <div className="flex items-center gap-2 flex-wrap justify-center">
                 <button
                   onClick={(e) => { e.stopPropagation(); setRetryCount(c => c + 1); loadVideo(); }}
-                  className="flex items-center gap-1.5 sm:gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-colors"
+                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl font-bold text-xs transition-colors"
                 >
-                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
                   Retry{retryCount > 0 ? ` (${retryCount})` : ""}
                 </button>
                 <a
                   href="https://t.me/urs_boy09"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  target="_blank" rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="flex items-center gap-1.5 sm:gap-2 bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/30 text-sky-300 hover:text-sky-200 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all"
+                  className="flex items-center gap-1.5 bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/30 text-sky-300 px-3 py-2 rounded-xl font-bold text-xs transition-all"
                 >
-                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248l-2.012 9.47c-.148.668-.54.83-1.093.516l-3.017-2.222-1.457 1.4c-.16.16-.296.296-.607.296l.215-3.06 5.56-5.016c.242-.215-.053-.334-.374-.12L7.084 14.43l-2.95-.923c-.641-.2-.655-.64.134-.948l11.52-4.44c.534-.196 1.002.13.774.13z"/>
                   </svg>
                   Contact
                 </a>
                 <button
                   onClick={(e) => { e.stopPropagation(); onClose(); }}
-                  className="bg-white/8 hover:bg-white/15 text-white/50 hover:text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-colors"
+                  className="bg-white/8 hover:bg-white/15 text-white/50 hover:text-white px-3 py-2 rounded-xl font-bold text-xs transition-colors"
                 >Back</button>
               </div>
             </div>
           )}
 
           {/* ── YouTube ── */}
-          {device && verified && youtubeUrl && !loading && (
+          {verified && youtubeUrl && !loading && (
             <iframe
               src={youtubeUrl.replace("watch?v=", "embed/").split("&")[0] + "?autoplay=1"}
               className="w-full h-full"
@@ -808,7 +746,7 @@ export default function VideoPlayer({
           )}
 
           {/* ── Custom Controls ── */}
-          {device && verified && !youtubeUrl && !error && (
+          {verified && !youtubeUrl && !error && (
             <div
               className={`absolute inset-0 flex flex-col justify-end transition-opacity duration-300 ${showControls || !playing ? "opacity-100" : "opacity-0"}`}
               onClick={(e) => e.stopPropagation()}
@@ -839,7 +777,7 @@ export default function VideoPlayer({
                     </button>
                     <input type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume}
                       onChange={(e) => { const v = parseFloat(e.target.value); if (videoRef.current) { videoRef.current.volume = v; videoRef.current.muted = v === 0; } }}
-                      className="w-12 sm:w-20 accent-indigo-500 cursor-pointer hidden xs:block" />
+                      className="w-12 sm:w-20 accent-indigo-500 cursor-pointer hidden sm:block" />
                   </div>
                   <span className="text-white/60 text-[10px] sm:text-xs flex-shrink-0 font-mono hidden sm:block">{formatTime(currentTime)} / {formatTime(duration)}</span>
                   <div className="flex-1" />
@@ -856,8 +794,8 @@ export default function VideoPlayer({
                       </div>
                     )}
                   </div>
-                  {/* Quality — only for non-iOS (native HLS doesn't expose levels) */}
-                  {qualities.length > 0 && device !== "ios" && (
+                  {/* Quality — hidden on iOS (native HLS doesn't expose levels) */}
+                  {qualities.length > 0 && !isIos && (
                     <div className="relative flex-shrink-0">
                       <button onClick={(e) => { e.stopPropagation(); setShowQualityMenu(!showQualityMenu); setShowSpeedMenu(false); }}
                         className="text-white/70 hover:text-white text-[10px] sm:text-xs font-bold px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">
@@ -886,7 +824,7 @@ export default function VideoPlayer({
         </div>
       </div>
 
-      {/* Keyboard hint */}
+      {/* Keyboard hint — desktop only */}
       <p className="text-center text-white/20 text-[11px] pb-1 hidden sm:block flex-shrink-0">
         Space = play/pause &nbsp;·&nbsp; ← → skip 10s &nbsp;·&nbsp; F = fullscreen &nbsp;·&nbsp; M = mute &nbsp;·&nbsp; Esc = back
       </p>
